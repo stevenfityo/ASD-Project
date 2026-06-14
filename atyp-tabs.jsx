@@ -3,13 +3,25 @@
 // ── Profile ───────────────────────────────────────────────────────────
 
 function ProfileScreen({ onTab, back, child, openSection }) {
-  const sections = [
-  { key: 'routine',   I: Icon.Clipboard, label: 'Daily Routine',    sub: 'Meds, meals, therapy, sleep',      count: '7 daily tasks' },
-  { key: 'medical',   I: Icon.Hospital,  label: 'Medical',          sub: 'Doctors, medications, allergies',  count: '4 entries' },
-  { key: 'therapies', I: Icon.Brain,     label: 'Therapies',        sub: 'ABA, speech, occupational',        count: '2 active' },
-  { key: 'education', I: Icon.School,    label: 'Education & IEP',  sub: 'School, accommodations, goals',    count: 'IEP renewed Mar 2026' },
-  { key: 'legal',     I: Icon.Scale,     label: 'Legal & Financial', sub: 'Guardianship, ABLE, trusts',       count: 'Add details' },
-  { key: 'documents', I: Icon.Folder,    label: 'Documents Vault',  sub: 'Reports, evaluations, records',    count: '6 files' }];
+  const groups = [
+    {
+      title: 'Daily Care',
+      items: [
+        { key: 'routine',   I: Icon.Clipboard, label: 'Daily Routine',     sub: 'Meds, meals, therapy, sleep'     },
+        { key: 'documents', I: Icon.Folder,    label: 'Documents Vault',   sub: 'Reports, evaluations, records'   },
+        { key: 'trusted',   I: Icon.Heart,     label: 'Trusted Person',    sub: 'Emergency guardian access'       },
+      ]
+    },
+    {
+      title: 'Records',
+      items: [
+        { key: 'medical',   I: Icon.Hospital,  label: 'Medical',           sub: 'Doctors, medications, allergies' },
+        { key: 'therapies', I: Icon.Brain,     label: 'Therapies',         sub: 'ABA, speech, occupational'       },
+        { key: 'education', I: Icon.School,    label: 'Education & IEP',   sub: 'School, accommodations, goals'   },
+        { key: 'legal',     I: Icon.Scale,     label: 'Legal & Financial', sub: 'Guardianship, ABLE, trusts'      },
+      ]
+    },
+  ];
 
   return (
     <Screen bg={T.bg} bottomTab={<TabBar active="home" onTab={onTab} />}>
@@ -23,79 +35,75 @@ function ProfileScreen({ onTab, back, child, openSection }) {
           <Icon.Plus s={15} c={T.green}/> Add child
         </button>
       }/>
-      {/* Hero */}
-      <div style={{
-        margin: '0 18px 14px',
-        background: `linear-gradient(160deg, ${T.green} 0%, ${T.greenDeep} 100%)`,
-        borderRadius: 22, padding: '20px 20px 18px',
-        color: '#fff', position: 'relative', overflow: 'hidden'
-      }}>
-        {/* decorative circles */}
-        <div style={{ position: 'absolute', right: -28, top: -28, width: 140, height: 140, borderRadius: 999, background: 'rgba(255,255,255,0.06)' }} />
-        <div style={{ position: 'absolute', right: 30, bottom: -50, width: 90, height: 90, borderRadius: 999, background: 'rgba(255,255,255,0.06)' }} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
-          <Avatar initials={child.initials} size={64} color="#fff" />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>{child.name}</div>
-            <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Icon.Calendar s={13} c="#fff" sw={1.6}/>
-              {child.dob} ({child.age} years old)
-            </div>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: 'rgba(255,255,255,0.18)',
-              padding: '3px 9px', borderRadius: 999,
-              fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
-              marginTop: 8
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: T.mint }} />
-              {child.diagnosis.toUpperCase()}
-            </div>
-          </div>
-        </div>
-
-        {/* Profile completion */}
-        <div style={{ marginTop: 18, position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>Profile 60% complete</span>
-            <span style={{ fontSize: 12, fontWeight: 700 }}>Add medical info</span>
-          </div>
-          <div style={{ height: 6, background: 'rgba(255,255,255,0.18)', borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{ width: '60%', height: '100%', background: T.mint }} />
-          </div>
-        </div>
-      </div>
-
-      {/* Section list */}
-      <div style={{ padding: '4px 18px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {sections.map((s, i) =>
-        <button key={i} onClick={() => openSection && openSection(s.key)} style={{
-          background: '#fff', borderRadius: 16, padding: '14px 16px',
-          boxShadow: `inset 0 0 0 1px ${T.line}`,
-          display: 'flex', alignItems: 'center', gap: 14,
-          border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-          width: '100%'
+      {/* Child hero — Account-style */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4px 18px 20px' }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: 999,
+          background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 26, fontWeight: 700, color: '#fff',
+          boxShadow: '0 8px 22px rgba(45,106,79,0.24)',
+        }}>{child.initials}</div>
+        <div style={{ fontSize: 21, fontWeight: 700, color: T.ink, marginTop: 10, letterSpacing: '-0.02em' }}>{child.name}</div>
+        <div style={{ fontSize: 13, color: T.muted, marginTop: 3 }}>{child.dob} · {child.age} years old</div>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          background: T.greenSoft, padding: '4px 11px', borderRadius: 999,
+          fontSize: 11, fontWeight: 700, color: T.green, letterSpacing: '0.04em', marginTop: 8,
         }}>
-            <div style={{
-            width: 44, height: 44, borderRadius: 12, background: T.greenSoft,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-          }}>
-              <s.I s={22} c={T.green} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em' }}>{s.label}</div>
-              <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2 }}>{s.sub}</div>
-            </div>
-            <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginRight: 6, whiteSpace: 'nowrap' }}>{s.count}</div>
-            <Icon.ChevronRight s={16} c={T.muted} />
-          </button>
-        )}
+          <span style={{ width: 5, height: 5, borderRadius: 999, background: T.green }}/>
+          {child.diagnosis.toUpperCase()}
+        </div>
       </div>
 
+      <div style={{ padding: '0 18px', display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 28 }}>
 
-    </Screen>);
+        {/* Profile completion tile */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>Profile completeness</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.green }}>60%</div>
+          </div>
+          <div style={{ height: 6, background: T.line, borderRadius: 999, overflow: 'hidden', marginBottom: 10 }}>
+            <div style={{ width: '60%', height: '100%', background: T.green, borderRadius: 999 }}/>
+          </div>
+          <div style={{ fontSize: 12, color: T.muted }}>Add medical info to improve your profile</div>
+        </div>
 
+        {/* Section groups */}
+        {groups.map(g => (
+          <div key={g.title}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{g.title}</div>
+            <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+              {g.items.map((s, i) => (
+                <button key={s.key} onClick={() => openSection && openSection(s.key)} style={{
+                  width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit', textAlign: 'left',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 14px',
+                  borderBottom: i < g.items.length - 1 ? `1px solid ${T.line}` : 'none',
+                }}>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 9, background: T.greenSoft,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <s.I s={17} c={T.green}/>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em' }}>{s.label}</div>
+                    <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{s.sub}</div>
+                  </div>
+                  <Icon.ChevronRight s={15} c={T.muted}/>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+      </div>
+    </Screen>
+  );
 }
 
 // ── Events ────────────────────────────────────────────────────────────

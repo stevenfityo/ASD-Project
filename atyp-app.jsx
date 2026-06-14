@@ -97,7 +97,7 @@ function App() {
     case 'child':body = <ChildScreen go={go} back={back} />;break;
     case 'notif':body = <NotifScreen go={go} back={back} />;break;
     case 'ready':body = <ReadyScreen go={go} />;break;
-    case 'home':body = <HomeScreen onTab={goTab} openProfile={openProfile} openStage={openStage} openQuestion={openQuestion} child={child} openSwitcher={openSwitcher} />;break;
+    case 'home':body = <HomeScreen onTab={goTab} openProfile={openProfile} openStage={openStage} openQuestion={openQuestion} child={child} openSwitcher={openSwitcher} openSection={openProfileSection} />;break;
     case 'map':body = <MapScreen go={go} back={back} openStage={openStage} onTab={goTab} openProfile={openProfile} child={child} openSwitcher={openSwitcher} />;break;
     case 'stage':body = <StageDetailScreen stageId={stageId} back={back} openQuestion={openQuestion} doneIds={doneIds} child={child} />;break;
     case 'question':body = <QuestionDetailScreen question={question} back={back} isDone={isQuestionDone(question, doneIds)} markDone={markDone} />;break;

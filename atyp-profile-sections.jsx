@@ -2,17 +2,10 @@
 
 // ── Shared helpers ────────────────────────────────────────────────────
 
-function InfoGroup({ label, children, onAdd }) {
+function InfoGroup({ label, children }) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
-        {onAdd && (
-          <button onClick={onAdd} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: T.green, fontFamily: 'inherit' }}>
-            <Icon.Plus s={13} c={T.green}/> Add
-          </button>
-        )}
-      </div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{children}</div>
     </div>
   );
@@ -68,15 +61,15 @@ function ProfileMedicalScreen({ back }) {
     <Screen bg={T.bg}>
       <ScreenHeader title="Medical" onBack={back} sticky={false}/>
       <div style={{ padding: '0 18px 32px' }}>
-        <InfoGroup label="Doctors" onAdd={() => {}}>
+        <InfoGroup label="Doctors">
           {doctors.map(d => <InfoRow key={d.id} I={Icon.Hospital} tint="#C25450" bg="#F5E1E0" title={d.title} sub={d.sub} badge={d.badge} onDelete={() => del(setDoctors)(d.id)}/>)}
           <AddDashedBtn label="Add doctor" onClick={() => {}}/>
         </InfoGroup>
-        <InfoGroup label="Medications" onAdd={() => {}}>
+        <InfoGroup label="Medications">
           {meds.map(m => <InfoRow key={m.id} I={Icon.Bulb} tint="#9C5E3A" bg="#F2E4D8" title={m.title} sub={m.sub} onDelete={() => del(setMeds)(m.id)}/>)}
           <AddDashedBtn label="Add medication" onClick={() => {}}/>
         </InfoGroup>
-        <InfoGroup label="Allergies & Sensitivities" onAdd={() => {}}>
+        <InfoGroup label="Allergies & Sensitivities">
           {allergies.map(a => <InfoRow key={a.id} I={Icon.Bell} tint="#C25450" bg="#FEE2E2" title={a.title} sub={a.sub} onDelete={() => del(setAllergies)(a.id)}/>)}
           <AddDashedBtn label="Add allergy" onClick={() => {}}/>
         </InfoGroup>
@@ -156,7 +149,7 @@ function ProfileEducationScreen({ back }) {
           </div>
         </InfoGroup>
 
-        <InfoGroup label="Accommodations" onAdd={() => {}}>
+        <InfoGroup label="Accommodations">
           {accommodations.map((a, i) => (
             <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '10px 14px', boxShadow: `inset 0 0 0 1px ${T.line}`, display: 'flex', alignItems: 'center', gap: 10 }}>
               <Icon.Check s={14} c={T.green} sw={2.5}/>
@@ -388,6 +381,130 @@ function ProfileDocumentsScreen({ back }) {
   );
 }
 
+// ── Trusted Person ────────────────────────────────────────────────────
+
+function ProfileTrustedScreen({ back }) {
+  const emptyPerson = { name: '', relation: '', phone: '', email: '', note: '' };
+  const [people, setPeople] = React.useState([
+    { id: 't1', name: 'Robert Miller', relation: 'Uncle', phone: '+1 (555) 234-5678', email: 'robert@example.com', note: 'Has full medical power of attorney.' },
+  ]);
+  const [adding, setAdding] = React.useState(false);
+  const [draft, setDraft] = React.useState(emptyPerson);
+  const [deletingId, setDeletingId] = React.useState(null);
+
+  const add = () => {
+    if (!draft.name.trim()) return;
+    setPeople(p => [...p, { ...draft, id: 't' + Date.now() }]);
+    setDraft(emptyPerson);
+    setAdding(false);
+  };
+
+  const remove = (id) => { setPeople(p => p.filter(x => x.id !== id)); setDeletingId(null); };
+
+  const Field = ({ label, value, onChange, placeholder, type = 'text' }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type}
+        style={{ height: 42, borderRadius: 10, border: `1.5px solid ${T.line}`, padding: '0 12px', fontFamily: 'inherit', fontSize: 14, color: T.ink, outline: 'none', width: '100%', boxSizing: 'border-box', background: '#fff' }}/>
+    </div>
+  );
+
+  return (
+    <Screen bg={T.bg}>
+      <ScreenHeader title="Trusted Person" onBack={back} sticky={false}/>
+
+      <div style={{ padding: '0 18px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {/* Info banner */}
+        <div style={{ background: `${T.green}0F`, borderRadius: 14, padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start', boxShadow: `inset 0 0 0 1px ${T.green}22` }}>
+          <Icon.Heart s={18} c={T.green} style={{ flexShrink: 0, marginTop: 1 }}/>
+          <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.55 }}>
+            Trusted persons can receive guardianship of this child's profile if the primary caregiver is unable to continue. They will not have access until you explicitly transfer the account.
+          </div>
+        </div>
+
+        {/* List of trusted people */}
+        {people.map(p => (
+          <div key={p.id} style={{ background: '#fff', borderRadius: 16, boxShadow: `inset 0 0 0 1px ${T.line}`, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 46, height: 46, borderRadius: 999, background: T.greenSoft, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 18, fontWeight: 700, color: T.green }}>
+                  {p.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                </span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15.5, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em' }}>{p.name}</div>
+                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{p.relation}</div>
+              </div>
+              <button onClick={() => setDeletingId(p.id)} style={{
+                width: 32, height: 32, borderRadius: 999, border: 'none', cursor: 'pointer',
+                background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, color: '#C25450', flexShrink: 0,
+              }}>×</button>
+            </div>
+            <div style={{ borderTop: `1px solid ${T.line}`, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {p.phone && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, width: 52 }}>Phone</div>
+                  <div style={{ fontSize: 13.5, color: T.ink, fontWeight: 600 }}>{p.phone}</div>
+                </div>
+              )}
+              {p.email && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, width: 52 }}>Email</div>
+                  <div style={{ fontSize: 13.5, color: T.ink, fontWeight: 600 }}>{p.email}</div>
+                </div>
+              )}
+              {p.note && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, width: 52, paddingTop: 1 }}>Note</div>
+                  <div style={{ fontSize: 13, color: T.ink2, flex: 1, lineHeight: 1.45 }}>{p.note}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Delete confirm */}
+            {deletingId === p.id && (
+              <div style={{ borderTop: `1px solid ${T.line}`, padding: '12px 16px', background: '#FEF2F2', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 13, color: '#C25450', fontWeight: 600 }}>Remove {p.name} as trusted person?</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => remove(p.id)} style={{ flex: 1, height: 38, borderRadius: 10, border: 'none', background: '#C25450', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Yes, remove</button>
+                  <button onClick={() => setDeletingId(null)} style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Add form */}
+        {adding ? (
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px', boxShadow: `inset 0 0 0 1.5px ${T.green}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginBottom: 2 }}>New trusted person</div>
+            <Field label="Full name" value={draft.name} onChange={v => setDraft(d => ({ ...d, name: v }))} placeholder="Jane Smith"/>
+            <Field label="Relationship" value={draft.relation} onChange={v => setDraft(d => ({ ...d, relation: v }))} placeholder="Aunt, sibling, family friend…"/>
+            <Field label="Phone" value={draft.phone} onChange={v => setDraft(d => ({ ...d, phone: v }))} placeholder="+1 (555) 000-0000" type="tel"/>
+            <Field label="Email" value={draft.email} onChange={v => setDraft(d => ({ ...d, email: v }))} placeholder="name@email.com" type="email"/>
+            <Field label="Note (optional)" value={draft.note} onChange={v => setDraft(d => ({ ...d, note: v }))} placeholder="Power of attorney, specific instructions…"/>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={add} style={{ flex: 1, height: 42, borderRadius: 11, border: 'none', background: T.green, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Add person</button>
+              <button onClick={() => { setAdding(false); setDraft(emptyPerson); }} style={{ flex: 1, height: 42, borderRadius: 11, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setAdding(true)} style={{
+            width: '100%', height: 50, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 14, fontWeight: 700, color: T.green,
+            background: T.greenSoft, border: `1.5px dashed ${T.green}55`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
+            <Icon.Plus s={16} c={T.green}/> Add trusted person
+          </button>
+        )}
+      </div>
+    </Screen>
+  );
+}
+
 // ── Router ────────────────────────────────────────────────────────────
 
 function ProfileSectionScreen({ sectionId, back, child }) {
@@ -398,6 +515,7 @@ function ProfileSectionScreen({ sectionId, back, child }) {
     case 'legal':     return <ProfileLegalScreen back={back} child={child}/>;
     case 'routine':   return <ProfileRoutineScreen back={back} child={child}/>;
     case 'documents': return <ProfileDocumentsScreen back={back} child={child}/>;
+    case 'trusted':   return <ProfileTrustedScreen back={back} child={child}/>;
     default:          return null;
   }
 }
