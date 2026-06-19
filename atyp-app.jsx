@@ -105,7 +105,7 @@ function App() {
     case 'profile':body = <ProfileScreen onTab={goTab} back={back} child={child} openSection={openProfileSection} />;break;
     case 'events':body = <EventsScreen onTab={goTab} />;break;
     case 'market':body = <MarketplaceScreen onTab={goTab} />;break;
-    case 'assistant':body = <AssistantScreen onTab={goTab} child={child} openMap={() => {setStack((p) => [...p, screen]);setScreen('map');}} />;break;
+    case 'assistant':body = <AssistantScreen onTab={goTab} child={child} openMap={() => {setStack((p) => [...p, screen]);setScreen('map');}} openProfile={openProfile} openSwitcher={openSwitcher}/>;break;
     case 'userProfile':body = <UserProfileScreen onTab={goTab} />;break;
     default:body = <WelcomeScreen go={go} />;
   }

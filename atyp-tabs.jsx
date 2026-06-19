@@ -742,171 +742,612 @@ function AIMd({ text }) {
   );
 }
 
-function AssistantScreen({ onTab, child, openMap }) {
-  const allChildren = window.CHILDREN || [];
-  const [activeChild, setActiveChild] = React.useState(child);
-  const [showSwitcher, setShowSwitcher] = React.useState(false);
-  const [draft, setDraft] = React.useState('');
-  const [messages, setMessages] = React.useState([]);
-  const [typing, setTyping] = React.useState(false);
-  const inputRef = React.useRef(null);
-  const listEndRef = React.useRef(null);
-  const hasMessages = messages.length > 0;
+// ── Guide Tree Data ───────────────────────────────────────────────────
+const GUIDE_TREE = {
+  start: {
+    q: (name) => `What's on your mind today?`,
+    sub: 'Choose the area that concerns you most right now',
+    choices: [
+      { id: 'medical',   label: 'Health & Medical',   emoji: '🏥', next: 'age' },
+      { id: 'therapy',   label: 'Therapies',           emoji: '🧠', next: 'age' },
+      { id: 'education', label: 'Education',           emoji: '🏫', next: 'age' },
+      { id: 'daily',     label: 'Daily Life',          emoji: '📅', next: 'age' },
+      { id: 'finance',   label: 'Finance & Legal',     emoji: '⚖️', next: 'age' },
+      { id: 'crisis',    label: 'Crisis Help',         emoji: '🚨', next: 'crisis_type' },
+    ],
+  },
+  age: {
+    q: (name) => `How old is ${name}?`,
+    sub: 'This helps us give age-appropriate guidance',
+    choices: [
+      { id: '0-3',  label: '0 – 3 years',  emoji: '🌱', next: 'sub' },
+      { id: '4-8',  label: '4 – 8 years',  emoji: '🌿', next: 'sub' },
+      { id: '9-13', label: '9 – 13 years', emoji: '🌳', next: 'sub' },
+      { id: '14+',  label: '14+ years',    emoji: '🌲', next: 'sub' },
+    ],
+  },
+  sub: {
+    q: (name, ctx) => { const map = {
+      medical: {
+        '0-3':  { q: 'What is your main concern?', choices: [
+          { id: 'diagnosis', label: 'Getting a diagnosis',      emoji: '🔍', next: 'result' },
+          { id: 'speech',    label: 'My child is not speaking', emoji: '🗣️', next: 'result' },
+          { id: 'routine',   label: 'Medical routine & doctors',emoji: '💊', next: 'result' },
+        ]},
+        '4-8':  { q: 'What is your main concern?', choices: [
+          { id: 'meds',      label: 'Medications & supplements', emoji: '💊', next: 'result' },
+          { id: 'sleep',     label: 'Sleep problems',            emoji: '😴', next: 'result' },
+          { id: 'emergency', label: 'Medical emergencies',       emoji: '🚑', next: 'result' },
+        ]},
+        '9-13': { q: 'What is your main concern?', choices: [
+          { id: 'puberty',   label: 'Puberty & changes',        emoji: '🔄', next: 'result' },
+          { id: 'meds',      label: 'Medications & specialists', emoji: '💊', next: 'result' },
+          { id: 'cooccur',   label: 'Co-occurring conditions',  emoji: '🩺', next: 'result' },
+        ]},
+        '14+':  { q: 'What is your main concern?', choices: [
+          { id: 'adult',     label: 'Transition to adult care', emoji: '🏥', next: 'result' },
+          { id: 'meds',      label: 'Long-term medications',    emoji: '💊', next: 'result' },
+          { id: 'mental',    label: 'Mental health support',    emoji: '🧩', next: 'result' },
+        ]},
+      },
+      therapy: {
+        '0-3':  { q: 'Which therapy area?', choices: [
+          { id: 'early',  label: 'Early intervention',     emoji: '⭐', next: 'result' },
+          { id: 'speech', label: 'Speech & language',      emoji: '🗣️', next: 'result' },
+          { id: 'aba',    label: 'ABA therapy',            emoji: '🔁', next: 'result' },
+        ]},
+        '4-8':  { q: 'Which therapy area?', choices: [
+          { id: 'speech', label: 'Speech & communication', emoji: '🗣️', next: 'result' },
+          { id: 'ot',     label: 'Occupational therapy',   emoji: '✋', next: 'result' },
+          { id: 'alt',    label: 'Alternative approaches', emoji: '🌿', next: 'result' },
+        ]},
+        '9-13': { q: 'Which therapy area?', choices: [
+          { id: 'social', label: 'Social skills',          emoji: '🤝', next: 'result' },
+          { id: 'behav',  label: 'Behavior support',       emoji: '🔁', next: 'result' },
+          { id: 'alt',    label: 'Alternative therapies',  emoji: '🌿', next: 'result' },
+        ]},
+        '14+':  { q: 'Which therapy area?', choices: [
+          { id: 'voc',    label: 'Vocational skills',      emoji: '💼', next: 'result' },
+          { id: 'social', label: 'Social & independence',  emoji: '🤝', next: 'result' },
+          { id: 'mental', label: 'Mental health therapy',  emoji: '🧘', next: 'result' },
+        ]},
+      },
+      education: {
+        '0-3':  { q: 'What are you planning?', choices: [
+          { id: 'daycare', label: 'Choosing a daycare',      emoji: '🏠', next: 'result' },
+          { id: 'ei',      label: 'Early intervention prog.', emoji: '⭐', next: 'result' },
+          { id: 'iep',     label: 'Preparing for school',    emoji: '📋', next: 'result' },
+        ]},
+        '4-8':  { q: 'What are you planning?', choices: [
+          { id: 'school',  label: 'Choosing the right school', emoji: '🏫', next: 'result' },
+          { id: 'iep',     label: 'IEP & accommodations',      emoji: '📋', next: 'result' },
+          { id: 'home',    label: 'Home education support',     emoji: '📚', next: 'result' },
+        ]},
+        '9-13': { q: 'What are you planning?', choices: [
+          { id: 'school',  label: 'Middle school transition',  emoji: '🏫', next: 'result' },
+          { id: 'iep',     label: 'IEP goals & rights',        emoji: '📋', next: 'result' },
+          { id: 'social',  label: 'Social inclusion at school', emoji: '🤝', next: 'result' },
+        ]},
+        '14+':  { q: 'What are you planning?', choices: [
+          { id: 'highsch', label: 'High school & graduation',  emoji: '🎓', next: 'result' },
+          { id: 'college', label: 'Higher education options',  emoji: '🏛️', next: 'result' },
+          { id: 'voc',     label: 'Vocational / work training', emoji: '💼', next: 'result' },
+        ]},
+      },
+      daily: {
+        '0-3':  { q: 'What part of daily life?', choices: [
+          { id: 'routine', label: 'Daily routine & structure', emoji: '📅', next: 'result' },
+          { id: 'sleep',   label: 'Sleep & night routine',     emoji: '😴', next: 'result' },
+          { id: 'family',  label: 'Family & siblings',         emoji: '👨‍👩‍👧', next: 'result' },
+        ]},
+        '4-8':  { q: 'What part of daily life?', choices: [
+          { id: 'routine', label: 'Managing daily routine',    emoji: '📅', next: 'result' },
+          { id: 'melt',    label: 'Meltdowns & behavior',      emoji: '🌊', next: 'result' },
+          { id: 'social',  label: 'Playdates & socializing',   emoji: '🤝', next: 'result' },
+        ]},
+        '9-13': { q: 'What part of daily life?', choices: [
+          { id: 'routine', label: 'Routine & transitions',     emoji: '📅', next: 'result' },
+          { id: 'melt',    label: 'Emotional regulation',      emoji: '🌊', next: 'result' },
+          { id: 'holiday', label: 'Holidays & special events', emoji: '🎉', next: 'result' },
+        ]},
+        '14+':  { q: 'What part of daily life?', choices: [
+          { id: 'indep',   label: 'Building independence',     emoji: '🌟', next: 'result' },
+          { id: 'social',  label: 'Social relationships',      emoji: '🤝', next: 'result' },
+          { id: 'future',  label: 'Planning for the future',   emoji: '🗺️', next: 'result' },
+        ]},
+      },
+      finance: {
+        '0-3':  { q: 'What do you need help with?', choices: [
+          { id: 'pay',     label: 'Who pays for early intervention', emoji: '💰', next: 'result' },
+          { id: 'rights',  label: 'Legal rights & protections',      emoji: '⚖️', next: 'result' },
+          { id: 'costs',   label: 'Planning for future costs',       emoji: '📊', next: 'result' },
+        ]},
+        '4-8':  { q: 'What do you need help with?', choices: [
+          { id: 'school',  label: 'Who pays for school services',    emoji: '🏫', next: 'result' },
+          { id: 'therapy', label: 'Funding therapies',               emoji: '💰', next: 'result' },
+          { id: 'rights',  label: 'My legal rights as a parent',     emoji: '⚖️', next: 'result' },
+        ]},
+        '9-13': { q: 'What do you need help with?', choices: [
+          { id: 'rights',  label: 'Rights & IEP law',                emoji: '⚖️', next: 'result' },
+          { id: 'benefits','label': 'Government benefits',            emoji: '🏛️', next: 'result' },
+          { id: 'future',  label: 'Planning for adulthood',          emoji: '📋', next: 'result' },
+        ]},
+        '14+':  { q: 'What do you need help with?', choices: [
+          { id: 'guardianship', label: 'Guardianship options',       emoji: '⚖️', next: 'result' },
+          { id: 'ssi',     label: 'SSI / disability benefits',       emoji: '💰', next: 'result' },
+          { id: 'trust',   label: 'Special needs trust & ABLE',      emoji: '🏦', next: 'result' },
+        ]},
+      },
+    };
+    const catMap = map[ctx.category];
+    return catMap ? catMap[ctx.age] : null;
+  },
+  },
+  crisis_type: {
+    q: () => 'What kind of help do you need right now?',
+    sub: 'We\'ll guide you to the right resources immediately',
+    choices: [
+      { id: 'meltdown', label: 'My child is having a meltdown', emoji: '🌊', next: 'result' },
+      { id: 'aggr',     label: 'Aggressive or unsafe behavior',  emoji: '🚨', next: 'result' },
+      { id: 'school',   label: 'Crisis at school',               emoji: '🏫', next: 'result' },
+    ],
+  },
+};
 
-  // Inject typing animation once
-  React.useEffect(() => {
-    if (document.getElementById('atyp-typing-css')) return;
-    const s = document.createElement('style');
-    s.id = 'atyp-typing-css';
-    s.textContent = '@keyframes atypDot{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}';
-    document.head.appendChild(s);
-  }, []);
+const GUIDE_RESULTS = {
+  // Medical
+  medical_diagnosis:    { title: 'Getting a Diagnosis', steps: ['Contact your pediatrician and request an ASD evaluation referral', 'Ask for a developmental pediatrician or child psychologist who specializes in ASD', 'Request the evaluation in writing — this creates a paper trail', 'Ask about the DSM-5 diagnostic code (F84.0) for future services', 'Early diagnosis = earlier access to services and funding'] },
+  medical_speech:       { title: 'Speech & Non-Verbal', steps: ['Ask your doctor for a referral to a speech-language pathologist (SLP) immediately', 'Look into AAC (Augmentative and Alternative Communication) devices', 'Early intervention programs often include free SLP services before age 3', 'Consider PECS (Picture Exchange Communication System) for home use', 'Document all communication attempts — it helps therapists track progress'] },
+  medical_routine:      { title: 'Medical Routine & Doctors', steps: ['Find a pediatrician experienced with ASD — ask your local autism society for referrals', 'Keep a single medical binder: diagnoses, meds, allergies, contacts', 'Schedule annual check-ins with a developmental pediatrician', 'Create a "hospital passport" — a one-page profile of your child for emergencies', 'Bring a support person to medical appointments when possible'] },
+  medical_meds:         { title: 'Medications & Supplements', steps: ['Always consult a child psychiatrist before starting any medication', 'Keep a log of behaviors, sleep, appetite — share it with the doctor', 'Ask about evidence-based supplements (Omega-3, Melatonin) vs. unproven ones', 'Request a medication review every 6 months', 'Never stop medications abruptly — always taper under medical supervision'] },
+  medical_sleep:        { title: 'Sleep Problems', steps: ['Discuss Melatonin with your doctor — it\'s often effective and safe for ASD', 'Build a strict wind-down routine: bath → book → weighted blanket → lights out', 'Reduce screen time at least 2 hours before bedtime', 'Check for sensory issues affecting sleep (scratchy pajamas, room temperature, sounds)', 'A sleep specialist referral may be needed for severe cases'] },
+  medical_emergency:    { title: 'Medical Emergencies', steps: ['Create a Medical ID card your child carries at all times', 'Register with local emergency services if your child may elope (wander)', 'Train your child on "stop, find an adult, show the card"', 'Add a medical alert note to your child\'s phone if they carry one', 'Keep emergency contacts visible at home and in school bag'] },
+  medical_puberty:      { title: 'Puberty & ASD', steps: ['Start conversations about body changes early using social stories or visual supports', 'Ask your pediatrician to recommend an ASD-knowledgeable gynecologist or urologist', 'Address hygiene routines explicitly — create visual step-by-step guides', 'Prepare for potential behavior changes during hormonal shifts', 'Discuss consent and personal boundaries in concrete, explicit terms'] },
+  medical_cooccur:      { title: 'Co-occurring Conditions', steps: ['Common co-occurring conditions: ADHD, anxiety, epilepsy, GI issues, sensory processing disorder', 'Request comprehensive evaluations for each suspected condition separately', 'Ensure all specialists communicate with each other — you may need to coordinate', 'Keep a symptom diary to identify patterns', 'Join condition-specific parent groups for targeted support'] },
+  medical_adult:        { title: 'Transition to Adult Medical Care', steps: ['Begin transition planning at age 14 — don\'t wait until 18', 'Find adult physicians experienced with ASD before the transition', 'Transfer all medical records and create a comprehensive health summary', 'Discuss guardianship or supported decision-making for medical consent', 'Connect with adult disability services in your state'] },
+  medical_mental:       { title: 'Mental Health Support', steps: ['Look for therapists who specialize in ASD + co-occurring mental health conditions', 'CBT adapted for ASD has strong evidence for anxiety and depression', 'Peer support groups for teens with ASD can reduce isolation significantly', 'Be alert to signs of depression — they may present differently in ASD (withdrawal, regression)', 'School counselors can be part of the support team — include them in IEP meetings'] },
+  // Therapy
+  therapy_early:        { title: 'Early Intervention (0–3)', steps: ['Contact your state\'s Early Intervention program immediately — it\'s federally mandated and usually free', 'Services can include speech, OT, PT, and developmental therapy', 'Evaluations must happen within 45 days of your request', 'Create an IFSP (Individualized Family Service Plan) with the team', 'Therapy in the home is most effective at this age — advocate for home visits'] },
+  therapy_speech:       { title: 'Speech & Language Therapy', steps: ['Request an evaluation from a certified Speech-Language Pathologist (SLP)', 'Therapy should happen at least 2–3x per week for meaningful progress', 'Ask the SLP to teach you strategies to use at home daily', 'Consider AAC devices if verbal speech is limited', 'Schools are required to provide speech services if it\'s in the IEP'] },
+  therapy_aba:          { title: 'ABA Therapy', steps: ['Find a BCBA (Board Certified Behavior Analyst) supervisor — check credentials at bacb.com', 'ABA should be individualized — ask to see the behavior plan and data', 'Intensity matters: 20–40 hours/week is often recommended for ages 2–5', 'Insurance often covers ABA — check your state\'s autism mandate law', 'Ask for parent training sessions — you are part of the therapy team'] },
+  therapy_ot:           { title: 'Occupational Therapy', steps: ['OT addresses sensory processing, fine motor skills, and daily living activities', 'Request a sensory profile evaluation as part of the OT assessment', 'Ask for a sensory diet — a personalized schedule of sensory activities', 'OT can be provided in schools through the IEP', 'Weighted vests, fidget tools, and sensory corners can help at home'] },
+  therapy_alt:          { title: 'Alternative Approaches', steps: ['Discuss any alternative therapy with your medical team first', 'Evidence-based: Social Stories, PECS, Floortime, DIR/Floortime, RDI', 'Be cautious of unproven and costly "cures" — research thoroughly', 'Music therapy and animal-assisted therapy have growing evidence', 'Ask for peer-reviewed studies before committing to any new approach'] },
+  therapy_social:       { title: 'Social Skills', steps: ['Look for social skills groups run by psychologists or SLPs — peer practice is key', 'Social Stories (Carol Gray method) are highly effective for teaching expectations', 'Role-play specific social scenarios at home before real situations', 'Video modeling — watching themselves or peers — works well for many ASD youth', 'Identify one or two genuine social interests to build friendships around'] },
+  therapy_behav:        { title: 'Behavior Support', steps: ['Work with a BCBA to identify triggers (ABC: Antecedent → Behavior → Consequence)', 'Create a Behavior Intervention Plan (BIP) — request it formally through the school', 'Positive reinforcement is more effective than punishment for ASD', 'Keep a behavior log: time, trigger, behavior, duration, what helped', 'Look for the function of the behavior — communication, escape, sensory, attention'] },
+  therapy_voc:          { title: 'Vocational Skills', steps: ['Explore vocational rehabilitation services — most states offer them for free at 14+', 'Identify your child\'s strengths and interests as a foundation for career exploration', 'Job coaching programs provide supported employment with on-site guidance', 'Consider internships or volunteer work to build real-world experience', 'Ask the IEP team to include transition and vocational goals starting at age 14'] },
+  therapy_mental:       { title: 'Mental Health Therapy', steps: ['Seek therapists trained in CBT adapted for autism (CBT-A)', 'Anxiety and depression are very common in ASD teens — early treatment matters', 'Mindfulness and relaxation techniques can be taught with visual supports', 'Group therapy with peers who have ASD can reduce shame and isolation', 'Be transparent with your teen about their diagnosis and strengths'] },
+  // Education
+  education_daycare:    { title: 'Choosing a Daycare (0–3)', steps: ['Look for daycares with low child-to-staff ratios (ideally 1:3 or 1:4)', 'Ask if staff have any ASD or special needs training', 'Inclusive settings with typically developing peers benefit communication development', 'Visit at least twice — once announced, once unannounced', 'Coordinate with your Early Intervention team to share strategies with daycare staff'] },
+  education_ei:         { title: 'Early Intervention Programs', steps: ['Under IDEA Part C, EI is free for children 0–3 with developmental delays', 'Request services in writing to start the 45-day evaluation clock', 'You have the right to attend all meetings and disagree with the plan', 'Transition to school-based services begins at age 3 — plan ahead', 'Keep copies of all evaluations and IFSP documents'] },
+  education_iep:        { title: 'IEP & Accommodations', steps: ['You are a full member of the IEP team — your voice matters equally', 'Review annual goals before the meeting and come with your own priority list', 'Request specific, measurable goals (not vague ones like "will improve communication")', 'Common accommodations: extended time, preferential seating, sensory breaks, written instructions', 'You can request an independent educational evaluation (IEE) at school\'s expense if you disagree'] },
+  education_school:     { title: 'Choosing the Right School', steps: ['Visit prospective schools with your child\'s IEP/profile in hand', 'Ask about their inclusion philosophy, resource room, and related services', 'Request data on outcomes for students with similar profiles', 'Inclusive classrooms with support are often the least restrictive environment (LRE) — your right under IDEA', 'Trust your instincts — and your child\'s reaction to the environment'] },
+  education_home:       { title: 'Home Education Support', steps: ['Structure and visual schedules are especially important for home learning', 'Break tasks into small steps with clear start and end points', 'Use your child\'s interests to make content engaging', 'Build in sensory breaks every 30–45 minutes', 'Connect with your school\'s resource team — they can advise even for home learning'] },
+  education_social:     { title: 'Social Inclusion at School', steps: ['Talk to the school counselor about peer education programs (teaching classmates about neurodiversity)', 'Lunch bunch and structured recess programs pair ASD students with trained peer buddies', 'Extracurricular activities tied to special interests help build genuine friendships', 'Coordinate with the teacher on seating and grouping for collaborative work', 'Watch for signs of bullying — ASD students are disproportionately targeted; act quickly'] },
+  education_highsch:    { title: 'High School & Graduation', steps: ['Ensure the IEP includes post-secondary transition goals by age 14 (required by IDEA)', 'Explore diploma options — some states offer certificates of completion for students who can\'t meet standard requirements', 'Plan for college applications — colleges have disability services offices; connect early', 'Self-advocacy skills are critical — teach your teen to understand and communicate their needs', 'Explore dual enrollment in community college as a bridge option'] },
+  education_college:    { title: 'Higher Education', steps: ['Contact the Disability Services Office at each college being considered', 'Self-disclosure is the student\'s choice — but documentation must be current', 'Look for colleges with dedicated ASD support programs (many now exist)', 'Consider starting with community college for a supported transition', 'Discuss executive function supports: planning, organization, time management'] },
+  education_voc:        { title: 'Vocational Training', steps: ['Contact your state\'s Vocational Rehabilitation (VR) office — free services available', 'Explore Project SEARCH, a high school transition program based in workplaces', 'Identify strengths and interests early — career path should build on them', 'Job coaching provides on-site support during initial employment', 'Many companies have neurodiversity hiring programs — SAP, Microsoft, EY, etc.'] },
+  // Daily Life
+  daily_routine:        { title: 'Daily Routine & Structure', steps: ['Visual schedules (pictures or icons) reduce anxiety about transitions', 'Keep the routine consistent — same time, same sequence, same cues', 'Use first/then boards: "First breakfast, then play"', 'Prepare for changes 24–48 hours in advance with visual previews', 'Build in transition warnings: "In 5 minutes we\'re leaving"'] },
+  daily_sleep:          { title: 'Sleep & Night Routine', steps: ['Use a consistent bedtime sequence with a visual schedule', 'Weighted blankets (10% of body weight) help many children with ASD', 'Eliminate screens at least 1 hour before bed', 'White noise or soft music can block sensory triggers at night', 'Melatonin is commonly used — discuss dose with your doctor'] },
+  daily_family:         { title: 'Family & Siblings', steps: ['Schedule one-on-one time with siblings who may feel overlooked', 'Explain the diagnosis to siblings age-appropriately — they cope better with information', 'Join a sibling support group (Sibshops is a well-known program)', 'Build couple time into the schedule — caregiver burnout is real', 'Accept help when offered — and ask for it when you need it'] },
+  daily_melt:           { title: 'Meltdowns & Emotional Regulation', steps: ['Identify the antecedents — what triggers the meltdown? Keep a log', 'Create a calm-down kit: noise-canceling headphones, fidgets, comfort object', 'During a meltdown: lower your voice, reduce demands, give space', 'After: reconnect warmly — no punishment or long explanations', 'Teach calming strategies during calm moments — not in the heat of the moment'] },
+  daily_social:         { title: 'Social Life & Connections', steps: ['Build on special interests to find like-minded peers', 'Structured social activities (coding clubs, robotics, drama) work better than free play', 'Practice social scripts for common situations at home', 'Set realistic expectations — one good friendship is more valuable than many acquaintances', 'Model and narrate social interactions in everyday life'] },
+  daily_holiday:        { title: 'Holidays & Special Events', steps: ['Prepare well in advance with social stories about what will happen', 'Create a visual schedule for the event day', 'Have a quiet retreat plan if the child becomes overwhelmed', 'Communicate needs to relatives before the event — don\'t expect them to "just understand"', 'Adjust expectations — modified participation is still participation'] },
+  daily_indep:          { title: 'Building Independence', steps: ['Teach daily living skills explicitly: cooking, laundry, banking, transportation', 'Use task analysis: break each skill into tiny steps with visual supports', 'Practice in real settings — not just at home', 'Allow failure in safe environments — it\'s part of learning', 'Connect with adult transition services before age 18'] },
+  daily_future:         { title: 'Planning for the Future', steps: ['Start discussions about living arrangements, employment, and relationships early', 'Explore supported living options — group homes, supported apartments, family home', 'Develop a "Life Plan" document with your child\'s vision, needs, and supports', 'Connect with adult disability organizations in your area', 'Legal and financial planning (guardianship, ABLE accounts, special needs trusts) should begin at 16–17'] },
+  // Finance & Legal
+  finance_pay:          { title: 'Funding Early Intervention', steps: ['Early intervention is federally funded under IDEA Part C — it\'s free or low-cost', 'Insurance may also cover some services — check your policy', 'Medicaid waiver programs provide additional funding — apply early, waitlists can be long', 'Contact your state\'s Family Support Network for local funding resources', 'Keep records of all services and costs for potential reimbursement'] },
+  finance_rights:       { title: 'Legal Rights & Protections', steps: ['Under IDEA, your child has the right to a Free Appropriate Public Education (FAPE)', 'You have the right to have an advocate present at any school meeting', 'The ADA protects your child in schools, public places, and eventually workplaces', 'You can file complaints with your state Department of Education if rights are violated', 'Contact your state\'s Parent Training and Information Center (PTI) for free guidance'] },
+  finance_costs:        { title: 'Planning for Future Costs', steps: ['Estimate lifetime support costs — factor in housing, medical, therapy, day programs', 'Open an ABLE account (tax-advantaged savings for people with disabilities)', 'Consider a Special Needs Trust to protect assets without affecting benefits eligibility', 'Check if your child qualifies for SSI (Supplemental Security Income)', 'Life insurance on parents is critical — ensure there\'s a plan if you can no longer provide care'] },
+  finance_school:       { title: 'Funding School Services', steps: ['Public school services are free under IDEA — including related services in the IEP', 'Private school tuition may be reimbursable if public school cannot meet needs', 'Medicaid can fund some school-based therapies — check your state rules', 'Extended school year (ESY / summer school) is available if regression is documented', 'Request an itemized breakdown of all services your child receives'] },
+  finance_therapy:      { title: 'Funding Therapies', steps: ['Most states have autism insurance mandates requiring coverage for ABA and other therapies', 'Check your state\'s Medicaid waiver for therapy funding', 'Medicaid HCBS waivers can fund in-home and community therapies', 'University training clinics often offer reduced-cost therapy', 'Nonprofit organizations sometimes offer grants for families — search the Autism Speaks resource guide'] },
+  finance_benefits:     { title: 'Government Benefits', steps: ['SSI (Supplemental Security Income) provides monthly income for children with disabilities', 'Medicaid provides health coverage — check your state\'s eligibility rules', 'SNAP (food stamps) may be available depending on household income', 'Many states have autism-specific Medicaid waivers with additional services', 'A special needs attorney or benefits counselor can help you maximize entitlements'] },
+  finance_future:       { title: 'Planning for Adulthood', steps: ['Transition planning must start in the IEP at age 14 under IDEA', 'Explore adult day programs, supported employment, and residential options early', 'Connect with adult disability services at age 18 — don\'t wait', 'Begin the SSI/SSDI application process 6–12 months before age 18', 'Create a transition portfolio: skills, interests, medical summary, goals'] },
+  finance_guardianship: { title: 'Guardianship Options', steps: ['At 18, your child becomes a legal adult — parental rights end automatically', 'Full guardianship gives you decision-making authority but removes autonomy', 'Consider less restrictive options: supported decision-making, limited guardianship, power of attorney', 'Consult a special needs attorney who specializes in guardianship', 'File for guardianship 6–12 months before age 18 — courts take time'] },
+  finance_ssi:          { title: 'SSI & Disability Benefits', steps: ['Apply for SSI at age 18 — even if denied, appeal immediately', 'SSI provides up to ~$914/month (2024) for qualifying individuals', 'To maintain SSI, assets must stay below $2,000 — use an ABLE account for savings', 'If a parent is retired, disabled, or deceased, your child may qualify for SSDI instead', 'Hire a benefits counselor to navigate this — mistakes can cause overpayments or loss of benefits'] },
+  finance_trust:        { title: 'Special Needs Trust & ABLE', steps: ['An ABLE account allows tax-free savings up to $18,000/year without affecting benefits', 'A Special Needs Trust holds assets for your child without disqualifying them from Medicaid/SSI', 'A "first-party" trust holds the disabled person\'s own assets; a "third-party" trust is funded by others', 'Include the trust in your will and coordinate with life insurance beneficiary designations', 'Consult a special needs estate planning attorney — this is complex and high-stakes'] },
+  // Crisis
+  crisis_meltdown:      { title: 'During a Meltdown — Right Now', steps: ['Stay calm — your body language matters more than your words', 'Lower your voice, slow your movements, remove demands completely', 'Give physical space — avoid grabbing or restraining unless there\'s immediate danger', 'Remove others from the area if possible — an audience makes it worse', 'Offer a comfort object, headphones, or weighted blanket silently'] },
+  crisis_aggr:          { title: 'Unsafe Behavior — Right Now', steps: ['Ensure everyone\'s physical safety first — your safety matters too', 'Use a calm, low voice: "I\'m here. You\'re safe. Let\'s find a quiet spot."', 'Avoid wrestling or restraining — use blocking techniques only if necessary', 'If there is a real safety emergency, call 911 and tell them your child has autism', 'After the crisis, document everything: time, trigger, what happened, what helped'] },
+  crisis_school:        { title: 'School Crisis — Act Now', steps: ['Call the school immediately and request to be present', 'Know your rights: you can go to the school at any time if your child is in crisis', 'If your child was physically restrained, request a written incident report within 24 hours', 'Request an emergency IEP meeting within 10 days to address the situation', 'Contact your state\'s Parent Training and Information Center (PTI) for free advocacy support'] },
+};
 
-  // Scroll to bottom on new messages
-  React.useEffect(() => {
-    if (!listEndRef.current) return;
-    let el = listEndRef.current.parentElement;
-    while (el) {
-      const ov = window.getComputedStyle(el).overflowY;
-      if (ov === 'auto' || ov === 'scroll') { el.scrollTop = el.scrollHeight; return; }
-      el = el.parentElement;
+// ── Guide Map Visual Component ────────────────────────────────────────
+function GuideMapView({ path, currentStep, done, stepData, result, childName, choose, reset }) {
+  const svgRef = React.useRef(null);
+  const W = 340;
+  const NODE_H = 40;
+  const NODE_W_SELECTED = 260;
+  const NODE_W_CHOICE = 95;
+  const LEVEL_GAP = 90;
+
+  // Build the list of levels to render
+  const levels = [];
+
+  // Level 0: root
+  const startChoices = GUIDE_TREE.start.choices;
+  const startSel = path.find(p => p.step === 'start');
+  levels.push({
+    step: 'start',
+    label: "What's on your mind?",
+    isActive: currentStep === 'start' && !done,
+    isDone: !!startSel,
+    selectedId: startSel ? startSel.choiceId : null,
+    choices: startChoices,
+    selectedLabel: startSel ? startSel.choiceLabel : null,
+    selectedEmoji: startSel ? startSel.emoji : null,
+  });
+
+  // Level 1: age or crisis_type
+  if (startSel) {
+    if (startSel.choiceId === 'crisis') {
+      const criSel = path.find(p => p.step === 'crisis_type');
+      levels.push({
+        step: 'crisis_type',
+        label: 'What kind of help?',
+        isActive: currentStep === 'crisis_type' && !done,
+        isDone: !!criSel,
+        selectedId: criSel ? criSel.choiceId : null,
+        choices: GUIDE_TREE.crisis_type.choices,
+        selectedLabel: criSel ? criSel.choiceLabel : null,
+        selectedEmoji: criSel ? criSel.emoji : null,
+      });
+    } else {
+      const ageSel = path.find(p => p.step === 'age');
+      levels.push({
+        step: 'age',
+        label: 'Age of ' + childName + '?',
+        isActive: currentStep === 'age' && !done,
+        isDone: !!ageSel,
+        selectedId: ageSel ? ageSel.choiceId : null,
+        choices: GUIDE_TREE.age.choices,
+        selectedLabel: ageSel ? ageSel.choiceLabel : null,
+        selectedEmoji: ageSel ? ageSel.emoji : null,
+      });
+
+      // Level 2: sub-question
+      if (ageSel) {
+        const subSel = path.find(p => p.step === 'sub');
+        const subData = GUIDE_TREE.sub.q(childName, { category: startSel.choiceId, age: ageSel.choiceId });
+        if (subData) {
+          levels.push({
+            step: 'sub',
+            label: subData.q,
+            isActive: currentStep === 'sub' && !done,
+            isDone: !!subSel,
+            selectedId: subSel ? subSel.choiceId : null,
+            choices: subData.choices,
+            selectedLabel: subSel ? subSel.choiceLabel : null,
+            selectedEmoji: subSel ? subSel.emoji : null,
+          });
+        }
+      }
     }
-  }, [messages, typing]);
+  }
 
-  const handleFocus = () => {
-    if (!draft && !hasMessages) setDraft(DEMO_CHAIN[0].q);
+  // Result level
+  if (done && result) {
+    levels.push({
+      step: 'result',
+      label: result.title,
+      isActive: false,
+      isDone: true,
+      isResult: true,
+      choices: [],
+      selectedLabel: null,
+    });
+  }
+
+  // Calculate total SVG height
+  const totalH = levels.reduce((acc, lv) => {
+    if (lv.isDone || lv.isResult) return acc + LEVEL_GAP;
+    if (lv.isActive) {
+      const rows = Math.ceil(lv.choices.length / 3);
+      return acc + LEVEL_GAP + rows * (NODE_H + 10);
+    }
+    return acc + LEVEL_GAP;
+  }, 80);
+
+  // Render
+  const nodes = [];
+  const lines = [];
+  let y = 40;
+  let prevCx = W / 2;
+  let prevY = y;
+
+  levels.forEach((lv, li) => {
+    const cx = W / 2;
+    const nodeW = lv.isResult ? NODE_W_SELECTED + 20 : (lv.isDone ? NODE_W_SELECTED : NODE_W_SELECTED);
+    const nodeX = cx - nodeW / 2;
+
+    if (li > 0) {
+      // Line from previous to this node
+      lines.push(
+        <line key={`line-${li}`} x1={prevCx} y1={prevY + NODE_H} x2={cx} y2={y} stroke={T.green} strokeWidth={2} strokeDasharray={lv.isActive ? '5,4' : 'none'} opacity={0.5}/>
+      );
+    }
+
+    if (lv.isResult) {
+      nodes.push(
+        <g key={`node-${li}`}>
+          <rect x={nodeX} y={y} width={nodeW} height={NODE_H + 8} rx={12} fill={T.greenDeep} opacity={0.92}/>
+          <text x={cx} y={y + NODE_H / 2 + 9} textAnchor="middle" fontSize={12} fontWeight="700" fill="#fff" fontFamily="inherit">
+            {lv.label.length > 28 ? lv.label.slice(0, 26) + '…' : lv.label}
+          </text>
+          <text x={cx} y={y + 16} textAnchor="middle" fontSize={10} fill="rgba(255,255,255,0.7)" fontFamily="inherit">Result</text>
+        </g>
+      );
+      prevCx = cx; prevY = y;
+      y += LEVEL_GAP;
+    } else if (lv.isDone) {
+      nodes.push(
+        <g key={`node-${li}`}>
+          <rect x={nodeX} y={y} width={nodeW} height={NODE_H} rx={10} fill={T.green}/>
+          <text x={cx - 12} y={y + NODE_H / 2 + 5} textAnchor="middle" fontSize={13} fill="#fff" fontFamily="inherit">{lv.selectedEmoji}</text>
+          <text x={cx + 8} y={y + NODE_H / 2 + 5} textAnchor="start" fontSize={12} fontWeight="700" fill="#fff" fontFamily="inherit"
+            style={{maxWidth: 160}}>
+            {(lv.selectedLabel || '').length > 22 ? (lv.selectedLabel || '').slice(0, 20) + '…' : lv.selectedLabel}
+          </text>
+        </g>
+      );
+      prevCx = cx; prevY = y;
+      y += LEVEL_GAP;
+    } else if (lv.isActive) {
+      // Question label
+      nodes.push(
+        <g key={`qlabel-${li}`}>
+          <text x={cx} y={y + 14} textAnchor="middle" fontSize={11} fontWeight="700" fill={T.muted} fontFamily="inherit" letterSpacing="0.04em">
+            {lv.label.toUpperCase().slice(0, 32)}
+          </text>
+        </g>
+      );
+
+      const choiceCount = lv.choices.length;
+      const perRow = Math.min(3, choiceCount);
+      const choiceW = Math.floor((W - (perRow - 1) * 8) / perRow);
+      const startY = y + 26;
+
+      lv.choices.forEach((ch, ci) => {
+        const row = Math.floor(ci / perRow);
+        const col = ci % perRow;
+        const cx2 = (choiceW + 8) * col + choiceW / 2;
+        const cy2 = startY + row * (NODE_H + 8);
+
+        // Line from question center to each choice
+        lines.push(
+          <line key={`cline-${li}-${ci}`} x1={cx} y1={y + 18} x2={cx2} y2={cy2} stroke={T.green} strokeWidth={1.5} opacity={0.25}/>
+        );
+
+        nodes.push(
+          <g key={`choice-${li}-${ci}`} style={{cursor:'pointer'}} onClick={() => choose(ch, lv.step)}>
+            <rect x={col * (choiceW + 8)} y={cy2} width={choiceW} height={NODE_H} rx={10}
+              fill="#fff" stroke={T.line} strokeWidth={1.5}/>
+            <text x={cx2} y={cy2 + 16} textAnchor="middle" fontSize={14} fontFamily="inherit">{ch.emoji}</text>
+            <text x={cx2} y={cy2 + 30} textAnchor="middle" fontSize={10} fontWeight="600" fill={T.ink2} fontFamily="inherit">
+              {ch.label.length > 12 ? ch.label.slice(0, 11) + '…' : ch.label}
+            </text>
+          </g>
+        );
+      });
+
+      const rows = Math.ceil(choiceCount / perRow);
+      prevCx = cx; prevY = startY + (rows - 1) * (NODE_H + 8);
+      y = startY + rows * (NODE_H + 8) + 20;
+    }
+  });
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '10px 4px 100px' }}>
+      {path.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 12px 8px' }}>
+          <button onClick={reset} style={{ height: 28, padding: '0 12px', borderRadius: 999, background: T.bgAlt, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: T.ink2 }}>↺ Start over</button>
+        </div>
+      )}
+      <svg ref={svgRef} width={W} height={Math.max(totalH, 300)} style={{ display: 'block', margin: '0 auto', overflow: 'visible' }}>
+        {lines}
+        {nodes}
+      </svg>
+      {done && result && (
+        <div style={{ margin: '0 14px' }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', boxShadow: `inset 0 0 0 1px ${T.line}`, marginTop: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginBottom: 10 }}>{result.title}</div>
+            {result.steps.map((s, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
+                <div style={{ width: 20, height: 20, borderRadius: 999, background: T.green, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0, marginTop: 1 }}>{i+1}</div>
+                <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.45 }}>{s}</div>
+              </div>
+            ))}
+          </div>
+          <button onClick={reset} style={{ width: '100%', marginTop: 12, height: 46, borderRadius: 14, border: 'none', background: T.green, color: '#fff', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+            Ask another question
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssistantScreen({ onTab, child, openMap, openProfile, openSwitcher }) {
+  const [path, setPath] = React.useState([]);
+  const [currentStep, setCurrentStep] = React.useState('start');
+  const [done, setDone] = React.useState(false);
+  const [viewMode, setViewMode] = React.useState('guide');
+  const scrollRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [path, done]);
+
+  const childName = child?.name || 'your child';
+
+  const getCtx = () => {
+    const category = path.find(p => p.step === 'start')?.choiceId;
+    const age = path.find(p => p.step === 'age')?.choiceId;
+    const sub = path.find(p => p.step === 'sub')?.choiceId;
+    return { category, age, sub };
   };
 
-  const sendMessage = (q) => {
-    if (!q.trim() || typing) return;
-    setDraft('');
-    setMessages(p => [...p, { role: 'user', content: q }]);
-    setTyping(true);
-    const match = DEMO_CHAIN.find(c => c.q === q) || DEMO_CHAIN[0];
-    setTimeout(() => {
-      setTyping(false);
-      setMessages(p => [...p, { role: 'ai', content: match.a, next: match.next }]);
-    }, 1300);
+  const getStepData = (step) => {
+    if (step === 'sub') {
+      const ctx = getCtx();
+      const node = GUIDE_TREE.sub;
+      const data = node.q(childName, ctx);
+      return data ? { q: data.q, sub: null, choices: data.choices } : null;
+    }
+    const node = GUIDE_TREE[step];
+    if (!node) return null;
+    if (node.choices) return { q: typeof node.q === 'function' ? node.q(childName) : node.q, sub: node.sub, choices: node.choices };
+    return null;
   };
 
-  const send = () => sendMessage(draft);
+  const getResultKey = () => {
+    const ctx = getCtx();
+    if (ctx.category === 'crisis') {
+      const type = path.find(p => p.step === 'crisis_type')?.choiceId;
+      return `crisis_${type}`;
+    }
+    return `${ctx.category}_${ctx.sub}`;
+  };
 
-  const quickChips = ['Prepare for the IEP meeting', 'Signs of sensory overload', 'Draft an email to the teacher', 'Explain Medicaid waivers'];
+  const choose = (choice, step) => {
+    const newPath = [...path, { step, choiceId: choice.id, choiceLabel: choice.label, emoji: choice.emoji }];
+    setPath(newPath);
+    if (choice.next === 'result') {
+      setCurrentStep('result');
+      setDone(true);
+    } else {
+      setCurrentStep(choice.next);
+    }
+  };
+
+  const reset = () => {
+    setPath([]);
+    setCurrentStep('start');
+    setDone(false);
+  };
+
+  const result = done ? GUIDE_RESULTS[getResultKey()] : null;
+  const stepData = !done ? getStepData(currentStep) : null;
 
   return (
     <Screen bg={T.bg} bottomTab={<TabBar active="assistant" onTab={onTab}/>}>
       {/* Header */}
-      <div style={{ padding: '2px 18px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, letterSpacing: '0.01em' }}>
-            {(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; })()},
+      <div style={{ padding: '2px 18px 10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, letterSpacing: '0.01em' }}>
+              {(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; })()},
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: T.ink, letterSpacing: '-0.025em', lineHeight: 1.15, marginTop: 1 }}>Guide</div>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: T.ink, letterSpacing: '-0.025em', lineHeight: 1.15, marginTop: 1 }}>Assistant</div>
+          {path.length > 0 && viewMode === 'guide' && (
+            <button onClick={reset} style={{ height: 34, padding: '0 14px', borderRadius: 999, background: T.bgAlt, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.ink2 }}>
+              ↺ Start over
+            </button>
+          )}
         </div>
-        <button style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 999, background: '#fff', border: 'none', cursor: 'pointer', boxShadow: `inset 0 0 0 1px ${T.line}`, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.ink2 }}>
-          <Icon.Bookmark s={14} c={T.ink2}/> History
-        </button>
-      </div>
-
-      {/* Journey card */}
-      <div style={{ padding: '0 14px', marginBottom: 14, position: 'relative' }}>
-        <JourneyCard child={activeChild} onOpenMap={openMap} onSwitchChild={() => setShowSwitcher(s => !s)}/>
-
-        {/* Child picker dropdown */}
-        {showSwitcher && (
-          <div style={{ position: 'absolute', top: '100%', left: 14, right: 14, zIndex: 40, background: '#fff', borderRadius: 16, boxShadow: '0 8px 24px rgba(27,36,33,0.14)', overflow: 'hidden', marginTop: 6, border: `1px solid ${T.line}` }}>
-            {allChildren.map(c => (
-              <button key={c.id} onClick={() => { setActiveChild(c); setShowSwitcher(false); }} style={{
-                width: '100%', padding: '12px 14px', background: c.id === activeChild.id ? T.greenSoft : 'transparent',
-                border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                display: 'flex', alignItems: 'center', gap: 12,
-                borderBottom: `1px solid ${T.line}`
-              }}>
-                <div style={{ width: 36, height: 36, borderRadius: 999, background: `linear-gradient(140deg, ${c.color || T.green}, ${T.greenDeep})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                  {c.initials}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink }}>{c.name}</div>
-                  <div style={{ fontSize: 12, color: T.muted, marginTop: 1 }}>{c.age} y.o. · {c.currentStageLabel}</div>
-                </div>
-                {c.id === activeChild.id && <Icon.Check s={16} c={T.green} sw={2.5}/>}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Chat messages */}
-      {hasMessages && (
-        <div style={{ padding: '0 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {messages.map((m, i) => m.role === 'user' ? (
-            <div key={i} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <div style={{ maxWidth: '80%', background: T.green, color: '#fff', borderRadius: '18px 18px 4px 18px', padding: '10px 14px', fontSize: 14, lineHeight: 1.45 }}>{m.content}</div>
-            </div>
-          ) : (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <div style={{ width: 28, height: 28, borderRadius: 999, flexShrink: 0, background: `linear-gradient(150deg, ${T.green}, ${T.greenDeep})`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
-                  <Icon.Sparkle s={13} c="#fff"/>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ background: '#fff', borderRadius: '4px 18px 18px 18px', padding: '12px 14px', boxShadow: `inset 0 0 0 1px ${T.line}`, fontSize: 13.5, color: T.ink2, lineHeight: 1.5 }}>
-                    <AIMd text={m.content}/>
-                  </div>
-                </div>
-              </div>
-              {m.next && (
-                <button onClick={() => sendMessage(m.next)} style={{ marginLeft: 36, background: T.greenSoft, borderRadius: 14, border: `1.5px solid rgba(45,106,79,0.18)`, cursor: 'pointer', fontFamily: 'inherit', padding: '11px 14px', fontSize: 13.5, fontWeight: 700, color: T.green, display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', width: 'calc(100% - 36px)', boxSizing: 'border-box' }}>
-                  <Icon.Sparkle s={20} c={T.green} sw={1.6}/>
-                  <span style={{ flex: 1 }}>{m.next}</span>
-                </button>
-              )}
-            </div>
+        {/* View mode tabs */}
+        <div style={{ display: 'flex', gap: 6, background: T.bgAlt, borderRadius: 12, padding: 4 }}>
+          {[['guide', '☰  Assistant'], ['gps', '🗺  GPS']].map(([mode, label]) => (
+            <button key={mode} onClick={() => setViewMode(mode)} style={{
+              flex: 1, height: 34, borderRadius: 9, border: 'none', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+              background: viewMode === mode ? '#fff' : 'transparent',
+              color: viewMode === mode ? T.ink : T.muted,
+              boxShadow: viewMode === mode ? '0 1px 4px rgba(27,36,33,0.10)' : 'none',
+              transition: 'all .15s',
+            }}>{label}</button>
           ))}
+        </div>
+      </div>
 
-          {typing && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              <div style={{ width: 28, height: 28, borderRadius: 999, flexShrink: 0, background: `linear-gradient(150deg, ${T.green}, ${T.greenDeep})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon.Sparkle s={13} c="#fff"/>
+      {/* GPS life journey view */}
+      {viewMode === 'gps' && (
+        <GPSMapContent child={child} openProfile={openProfile} openSwitcher={openSwitcher}/>
+      )}
+
+      {/* Guide view */}
+      {viewMode === 'guide' && (
+        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '0 14px 110px' }}>
+
+          {/* Breadcrumb path */}
+          {path.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
+              {path.map((p, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, height: 28, padding: '0 10px', borderRadius: 999, background: T.greenSoft, border: `1px solid rgba(45,106,79,0.15)`, fontSize: 12, fontWeight: 600, color: T.green }}>
+                  <span>{p.emoji}</span><span>{p.choiceLabel}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Assistant question bubble */}
+          {stepData && (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 20 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0, background: `linear-gradient(150deg, ${T.green}, ${T.greenDeep})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon.Sparkle s={16} c="#fff"/>
               </div>
-              <div style={{ background: '#fff', borderRadius: '4px 18px 18px 18px', padding: '12px 16px', boxShadow: `inset 0 0 0 1px ${T.line}`, display: 'flex', gap: 5, alignItems: 'center' }}>
-                {[0,1,2].map(j => <div key={j} style={{ width: 7, height: 7, borderRadius: 999, background: T.muted, animation: `atypDot .9s ${j*0.18}s infinite ease-in-out` }}/>)}
+              <div style={{ flex: 1 }}>
+                <div style={{ background: '#fff', borderRadius: '4px 18px 18px 18px', padding: '14px 16px', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+                  <div style={{ fontSize: 15.5, fontWeight: 700, color: T.ink, lineHeight: 1.35 }}>{stepData.q}</div>
+                  {stepData.sub && <div style={{ fontSize: 13, color: T.muted, marginTop: 4, lineHeight: 1.4 }}>{stepData.sub}</div>}
+                </div>
               </div>
             </div>
           )}
-          <div ref={listEndRef} style={{ height: 80 }}/>
+
+          {/* Choice cards */}
+          {stepData && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginLeft: 46 }}>
+              {stepData.choices.map(choice => (
+                <button key={choice.id} onClick={() => choose(choice, currentStep)} style={{
+                  width: '100%', padding: '14px 16px', background: '#fff', borderRadius: 16,
+                  border: `1.5px solid ${T.line}`, cursor: 'pointer', fontFamily: 'inherit',
+                  textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12,
+                  boxShadow: '0 2px 8px rgba(27,36,33,0.05)', transition: 'border-color .12s',
+                }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = T.green}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = T.line}
+                >
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: T.greenSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                    {choice.emoji}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink }}>{choice.label}</div>
+                  </div>
+                  <div style={{ fontSize: 18, color: T.muted, flexShrink: 0 }}>›</div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Result card */}
+          {done && result && (
+            <div style={{ marginLeft: 46 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 14 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0, background: `linear-gradient(150deg, ${T.green}, ${T.greenDeep})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon.Sparkle s={16} c="#fff"/>
+                </div>
+                <div style={{ flex: 1, background: '#fff', borderRadius: '4px 18px 18px 18px', padding: '14px 16px', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, marginBottom: 12 }}>Here's your guide: {result.title}</div>
+                  {result.steps.map((step, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-start' }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 999, background: T.green, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                      <div style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.5, flex: 1 }}>{step}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', padding: '4px 0 0', lineHeight: 1.5 }}>
+                Always confirm medical, legal, or crisis advice with a qualified professional.
+              </div>
+              <button onClick={reset} style={{ width: '100%', marginTop: 16, height: 48, borderRadius: 14, border: 'none', background: T.green, color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(45,106,79,0.28)' }}>
+                Ask another question
+              </button>
+            </div>
+          )}
         </div>
       )}
-
-      {/* Sticky bottom: chips + composer + disclaimer */}
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 86, zIndex: 25, padding: '8px 14px 6px', background: hasMessages ? 'rgba(248,246,241,0.97)' : 'linear-gradient(0deg,rgba(248,246,241,1) 55%,rgba(248,246,241,0))', backdropFilter: hasMessages ? 'blur(10px)' : 'none', WebkitBackdropFilter: hasMessages ? 'blur(10px)' : 'none' }}>
-        {!hasMessages && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10, justifyContent: 'flex-end' }}>
-            {quickChips.map(q => (
-              <button key={q} onClick={() => { setDraft(q); setTimeout(() => inputRef.current?.focus(), 50); }} style={{ height: 32, padding: '0 12px', borderRadius: 999, border: `1px solid ${T.line}`, background: '#fff', color: T.ink2, fontWeight: 600, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <Icon.Sparkle s={11} c={T.green} sw={1.8}/>{q}
-              </button>
-            ))}
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 26, boxShadow: '0 6px 18px rgba(20,30,25,0.08), inset 0 0 0 1px ' + T.line, padding: '6px 6px 6px 14px' }}>
-          <input
-            ref={inputRef}
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onFocus={handleFocus}
-            onKeyDown={e => e.key === 'Enter' && send()}
-            placeholder={`Ask about ${child?.name || 'Emma'}…`}
-            style={{ flex: 1, minWidth: 0, height: 40, border: 'none', outline: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 15, color: T.ink, letterSpacing: '-0.005em' }}
-          />
-          <button onClick={send} style={{ width: 40, height: 40, borderRadius: 999, border: 'none', cursor: draft.trim() ? 'pointer' : 'default', background: draft.trim() ? T.green : T.bgAlt, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: draft.trim() ? '0 4px 10px rgba(45,106,79,0.32)' : 'none', transition: 'background .15s' }}>
-            <Icon.Send s={18} c={draft.trim() ? '#fff' : T.muted}/>
-          </button>
-        </div>
-        <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', padding: '5px 0 0', lineHeight: 1.4 }}>
-          AI-generated · Always confirm medical, legal, or crisis advice with a professional.
-        </div>
-      </div>
     </Screen>
   );
 }
