@@ -211,7 +211,7 @@ function TabBar({ active, onTab }) {
   const tabs = [
   { key: 'home',      label: 'Home',      I: Icon.Home },
   { key: 'events',    label: 'Events',    I: Icon.Calendar },
-  { key: 'assistant', label: 'Assistant', I: Icon.Sparkle },
+  { key: 'assistant', label: 'Guide',     I: Icon.Sparkle },
   { key: 'market',    label: 'Market',    I: Icon.Store },
   { key: 'profile',   label: 'Account',   I: Icon.User }];
 
