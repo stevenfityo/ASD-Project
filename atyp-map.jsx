@@ -238,6 +238,15 @@ function stageStatus(stage, childAge) {
   return 'future';
 }
 
+// Index of the stage that matches the child's current age (first stage whose
+// range still includes — or lies ahead of — the child). Anchors "You are here".
+function currentStageIndex(childAge) {
+  for (let i = 0; i < GPS_STAGES.length; i++) {
+    if (childAge <= GPS_STAGES[i].maxAge) return i;
+  }
+  return GPS_STAGES.length - 1;
+}
+
 // Walk a stage's branch following the parent's answers.
 // Returns { steps:[{moment, choiceId, choice}], nextMoment|null, complete }.
 function stagePath(stage, answers) {
@@ -259,21 +268,35 @@ function stagePath(stage, answers) {
   return { steps, nextMoment: null, complete: true };
 }
 
-// ── GPS Timeline (branching life-path tree) ───────────────────────────
-function GPSMapContent({ child, openProfile, openSwitcher }) {
+// ── GPS Timeline (age-anchored branching life-path tree) ──────────────
+function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
+  // When embedded (inside AssistantScreen's Screen + header) the status-bar
+  // space is already handled by the parent, so we skip the top padding.
+  const topPad = embedded ? 8 : 54;
   const childAge = child ? child.age : 10;
+  const currentIndex = currentStageIndex(childAge);
+
   const [answers, setAnswers] = React.useState({});
   // activeChoice: { stage, moment } | null
   const [activeChoice, setActiveChoice] = React.useState(null);
+  // Past stages (already lived) start collapsed to keep the focus on "now".
+  const [collapsed, setCollapsed] = React.useState(() => {
+    const init = {};
+    GPS_STAGES.forEach((s, i) => { if (i < currentIndex) init[s.id] = true; });
+    return init;
+  });
+  // Which answered cards have their insight expanded.
+  const [openInsight, setOpenInsight] = React.useState({});
 
   const getAnswer = (stageId, momentId) => answers[`${stageId}_${momentId}`];
+  const toggleCollapse = id => setCollapsed(c => ({ ...c, [id]: !c[id] }));
+  const toggleInsight = key => setOpenInsight(o => ({ ...o, [key]: !o[key] }));
 
   // Saving an answer may re-route the branch. Prune any answers that belonged
   // to moments past the one being (re)answered, so stale cards don't linger.
   const saveAnswer = (stage, momentId, choiceId) => {
     setAnswers(prev => {
       const next = { ...prev, [`${stage.id}_${momentId}`]: choiceId };
-      // Re-walk the new branch and keep only answers on the live path.
       const live = new Set();
       let mId = stage.entry;
       const seen = new Set();
@@ -288,7 +311,6 @@ function GPSMapContent({ child, openProfile, openSwitcher }) {
         const choice = moment.choices.find(c => c.id === cId);
         mId = choice ? choice.next : null;
       }
-      // Drop this stage's answers that are no longer on the live path.
       Object.keys(next).forEach(k => {
         if (k.startsWith(`${stage.id}_`) && !live.has(k)) delete next[k];
       });
@@ -298,26 +320,23 @@ function GPSMapContent({ child, openProfile, openSwitcher }) {
   };
 
   // Precompute branch state + progressive unlock for every stage.
-  const stageState = GPS_STAGES.map((stage, i) => {
-    const path = stagePath(stage, answers);
-    return { stage, path };
-  });
-  const unlocked = GPS_STAGES.map((_, i) => i === 0 || stageState[i - 1].path.complete);
-  // "You are here": first unlocked stage that isn't complete yet.
-  const hereIndex = (() => {
-    for (let i = 0; i < GPS_STAGES.length; i++) {
-      if (unlocked[i] && !stageState[i].path.complete) return i;
-    }
-    return GPS_STAGES.length - 1;
-  })();
+  const stageState = GPS_STAGES.map(stage => ({ stage, path: stagePath(stage, answers) }));
+  // Stages up to & including the current age stage are open immediately;
+  // future stages unlock once the stage before them is complete.
+  const unlocked = GPS_STAGES.map((_, i) => i <= currentIndex || stageState[i - 1].path.complete);
+  const hereIndex = currentIndex;
 
-  // ── Choice picker overlay ────────────────────────────────────────────
-  if (activeChoice) {
+  const total = GPS_STAGES.length;
+  const exploredCount = stageState.filter(s => s.path.steps.length > 0).length;
+
+  // ── Choice picker — rendered as an overlay on top of the timeline so the
+  //    timeline stays mounted and its scroll position is preserved. ───────
+  const pickerOverlay = activeChoice ? (() => {
     const { stage, moment } = activeChoice;
     const selectedId = getAnswer(stage.id, moment.id);
     return (
-      <div style={{ width: '100%', height: '100%', background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ paddingTop: 54, paddingInline: 18, paddingBottom: 16, flexShrink: 0 }}>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ paddingTop: embedded ? 16 : 54, paddingInline: 18, paddingBottom: 16, flexShrink: 0 }}>
           <button onClick={() => setActiveChoice(null)} style={{
             display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
             cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, fontWeight: 700,
@@ -356,18 +375,67 @@ function GPSMapContent({ child, openProfile, openSwitcher }) {
         </div>
       </div>
     );
-  }
+  })() : null;
 
-  // Build the path summary across all completed stages.
+  // Path summary across all completed stages.
   const summary = stageState
     .filter(s => s.path.complete && s.path.steps.length > 0)
     .map(s => ({ stage: s.stage, steps: s.path.steps }));
 
+  // Colour of the connector line for a given stage index.
+  const lineColor = (idx) => {
+    const s = stageState[idx];
+    if (s.path.complete && s.path.steps.length > 0) return T.mint;
+    if (idx <= currentIndex) return T.green;
+    return T.line;
+  };
+
+  // Renders a single answered step with an expandable insight.
+  const AnsweredCard = ({ stage, moment, choice }) => {
+    const key = `${stage.id}_${moment.id}`;
+    const open = !!openInsight[key];
+    return (
+      <div style={{ background: '#fff', border: `1.5px solid ${T.green}`, borderRadius: 12,
+        boxShadow: '0 2px 8px rgba(45,106,79,0.08)', overflow: 'hidden' }}>
+        <button onClick={() => toggleInsight(key)} style={{
+          width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          textAlign: 'left', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <div style={{ width: 22, height: 22, borderRadius: 999, flexShrink: 0, background: T.green,
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon.Check s={12} c="#fff" sw={2.5}/>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: T.muted, fontWeight: 600, marginBottom: 1 }}>{moment.question}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>
+              {choice ? `${choice.emoji} ${choice.label}` : '—'}
+            </div>
+          </div>
+          <div style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }}>
+            <Icon.ChevronDown s={16} c={T.muted}/>
+          </div>
+        </button>
+        {open && (
+          <div style={{ padding: '0 14px 12px 46px' }}>
+            <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.55, marginBottom: 8 }}>
+              {choice ? choice.insight : ''}
+            </div>
+            <button onClick={() => setActiveChoice({ stage, moment })} style={{
+              background: T.greenSoft, border: 'none', borderRadius: 99, padding: '5px 12px',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: T.green,
+            }}>Change answer</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ── Timeline view ────────────────────────────────────────────────────
   return (
-    <div style={{ width: '100%', height: '100%', background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {pickerOverlay}
       {/* Child pill */}
-      <div style={{ flexShrink: 0, paddingTop: 54, paddingInline: 18, paddingBottom: 12,
+      <div style={{ flexShrink: 0, paddingTop: topPad, paddingInline: 18, paddingBottom: 12,
         background: 'linear-gradient(180deg, rgba(248,246,241,1) 80%, rgba(248,246,241,0))',
       }}>
         <div style={{
@@ -390,30 +458,44 @@ function GPSMapContent({ child, openProfile, openSwitcher }) {
 
       {/* Scrollable timeline */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 40px' }}>
+        {/* Intro + progress */}
+        <div style={{ background: T.greenSoft, borderRadius: 16, padding: '14px 16px', marginBottom: 18 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: T.ink, marginBottom: 4 }}>
+            {child.name}'s life path
+          </div>
+          <div style={{ fontSize: 12, color: T.ink2, lineHeight: 1.5, marginBottom: 12 }}>
+            A guide through the years ahead. Each answer shapes what comes next — and the road ahead unlocks as you go.
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'rgba(45,106,79,0.15)', overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round((exploredCount / total) * 100)}%`, height: '100%', background: T.green, borderRadius: 99, transition: 'width .25s' }}/>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.green, whiteSpace: 'nowrap' }}>
+              {exploredCount}/{total} stages
+            </div>
+          </div>
+        </div>
+
         {GPS_STAGES.map((stage, i) => {
           const { path } = stageState[i];
           const isUnlocked = unlocked[i];
-          const isComplete = path.complete && isUnlocked;
+          const isComplete = path.complete && isUnlocked && path.steps.length > 0;
           const isHere     = i === hereIndex;
+          const isPast     = i < currentIndex;
+          const isCollapsed = isUnlocked && collapsed[stage.id];
           const isLast     = i === GPS_STAGES.length - 1;
 
-          const nodeColor  = isComplete ? T.mint : isHere ? T.green : '#E8EBE7';
+          const nodeColor  = isComplete ? T.mint : isHere ? T.green : isUnlocked ? '#CFE3D6' : '#E8EBE7';
           const nodeBorder = !isUnlocked ? `2px dashed ${T.line}` : 'none';
-          const lineBelow  = isComplete ? T.mint : isHere ? T.green : T.line;
-          const lineAbove  = i > 0
-            ? (unlocked[i - 1] && stageState[i - 1].path.complete ? T.mint
-               : i - 1 === hereIndex ? T.green : T.line)
-            : 'transparent';
-
+          const lineBelow  = lineColor(i);
+          const lineAbove  = i > 0 ? lineColor(i - 1) : 'transparent';
           const answeredCount = path.steps.length;
 
           return (
             <div key={stage.id} style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
               {/* Left: connector + node */}
               <div style={{ width: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                {/* Line above */}
                 <div style={{ width: 2, height: i === 0 ? 8 : 20, background: lineAbove, borderRadius: 1 }}/>
-                {/* Node */}
                 <div style={{
                   width: isHere ? 40 : 32, height: isHere ? 40 : 32,
                   borderRadius: 999, background: nodeColor, border: nodeBorder,
@@ -426,7 +508,6 @@ function GPSMapContent({ child, openProfile, openSwitcher }) {
                     ? <Icon.Check s={16} c="#fff" sw={2.8}/>
                     : <span style={{ fontSize: isHere ? 20 : 16, opacity: isUnlocked ? 1 : 0.5 }}>{stage.emoji}</span>
                   }
-                  {/* Red GPS dot for current */}
                   {isHere && (
                     <div style={{
                       position: 'absolute', top: -4, right: -4,
@@ -436,7 +517,6 @@ function GPSMapContent({ child, openProfile, openSwitcher }) {
                     }}/>
                   )}
                 </div>
-                {/* Line below */}
                 {!isLast && (
                   <div style={{ width: 2, flex: 1, minHeight: 24, background: lineBelow, borderRadius: 1 }}/>
                 )}
@@ -444,64 +524,64 @@ function GPSMapContent({ child, openProfile, openSwitcher }) {
 
               {/* Right: stage content */}
               <div style={{ flex: 1, paddingLeft: 14, paddingTop: i === 0 ? 4 : 12, paddingBottom: isLast ? 0 : 4 }}>
-                {/* Stage header */}
-                <div style={{ marginBottom: !isUnlocked ? 16 : 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: isHere ? 15 : 14, fontWeight: 700, color: !isUnlocked ? T.muted : T.ink }}>
-                      {stage.label}
-                    </span>
-                    {isHere && (
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, color: '#E63946',
-                        background: 'rgba(230,57,70,0.10)', borderRadius: 99,
-                        padding: '2px 7px', letterSpacing: '0.03em',
-                      }}>YOU ARE HERE</span>
-                    )}
-                    {isComplete && answeredCount > 0 && (
-                      <span style={{
-                        fontSize: 10.5, fontWeight: 600, color: T.mint,
-                      }}>{answeredCount} ✓</span>
-                    )}
+                {/* Stage header — tap to collapse/expand when unlocked */}
+                <button
+                  onClick={isUnlocked ? () => toggleCollapse(stage.id) : undefined}
+                  style={{
+                    width: '100%', background: 'none', border: 'none', padding: 0,
+                    marginBottom: !isUnlocked ? 14 : isCollapsed ? 8 : 10,
+                    cursor: isUnlocked ? 'pointer' : 'default', fontFamily: 'inherit', textAlign: 'left',
+                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                  }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: isHere ? 15 : 14, fontWeight: 700, color: !isUnlocked ? T.muted : T.ink }}>
+                        {stage.label}
+                      </span>
+                      {isHere && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: '#E63946',
+                          background: 'rgba(230,57,70,0.10)', borderRadius: 99,
+                          padding: '2px 7px', letterSpacing: '0.03em',
+                        }}>YOU ARE HERE</span>
+                      )}
+                      {isPast && (
+                        <span style={{
+                          fontSize: 9.5, fontWeight: 700, color: T.muted,
+                          background: T.bgAlt, borderRadius: 99, padding: '2px 7px', letterSpacing: '0.03em',
+                        }}>LIVED</span>
+                      )}
+                      {isComplete && answeredCount > 0 && (
+                        <span style={{ fontSize: 10.5, fontWeight: 600, color: T.mint }}>{answeredCount} ✓</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
+                      {stage.sub} · {stage.ageRange}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
-                    {stage.sub} · {stage.ageRange}
-                  </div>
-                </div>
+                  {isUnlocked && (
+                    <div style={{ transform: isCollapsed ? 'none' : 'rotate(180deg)', transition: 'transform .15s', marginTop: 2 }}>
+                      <Icon.ChevronDown s={16} c={T.muted}/>
+                    </div>
+                  )}
+                </button>
 
-                {/* Unlocked: render the branch (answered steps + the one next question) */}
-                {isUnlocked && (
+                {/* Collapsed unlocked stage: one-line summary */}
+                {isUnlocked && isCollapsed && (
+                  <div style={{ fontSize: 12, color: T.muted, marginBottom: 18 }}>
+                    {answeredCount > 0
+                      ? `${answeredCount} answered · tap to view`
+                      : 'Tap to revisit this stage'}
+                  </div>
+                )}
+
+                {/* Expanded unlocked stage: the branch */}
+                {isUnlocked && !isCollapsed && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 18 }}>
                     {path.steps.map(({ moment, choice }) => (
-                      <button key={moment.id}
-                        onClick={() => setActiveChoice({ stage, moment })}
-                        style={{
-                          background: '#fff',
-                          border: `1.5px solid ${T.green}`,
-                          borderRadius: 12, padding: '10px 14px',
-                          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          boxShadow: '0 2px 8px rgba(45,106,79,0.08)',
-                        }}>
-                        <div style={{
-                          width: 22, height: 22, borderRadius: 999, flexShrink: 0,
-                          background: T.green,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <Icon.Check s={12} c="#fff" sw={2.5}/>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 11, color: T.muted, fontWeight: 600, marginBottom: 1 }}>
-                            {moment.question}
-                          </div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>
-                            {choice ? `${choice.emoji} ${choice.label}` : '—'}
-                          </div>
-                        </div>
-                        <Icon.ChevronRight s={14} c={T.muted}/>
-                      </button>
+                      <AnsweredCard key={moment.id} stage={stage} moment={moment} choice={choice}/>
                     ))}
 
-                    {/* The single next question to answer */}
                     {path.nextMoment && (
                       <button
                         onClick={() => setActiveChoice({ stage, moment: path.nextMoment })}
@@ -513,8 +593,7 @@ function GPSMapContent({ child, openProfile, openSwitcher }) {
                           display: 'flex', alignItems: 'center', gap: 10,
                         }}>
                         <div style={{
-                          width: 22, height: 22, borderRadius: 999, flexShrink: 0,
-                          background: '#D6D9D2',
+                          width: 22, height: 22, borderRadius: 999, flexShrink: 0, background: '#D6D9D2',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
                           <div style={{ width: 6, height: 6, borderRadius: 999, background: '#fff' }}/>
@@ -528,14 +607,29 @@ function GPSMapContent({ child, openProfile, openSwitcher }) {
                   </div>
                 )}
 
-                {/* Locked: muted prompt to complete the previous stage */}
+                {/* Locked future stage: a teaser of what's ahead */}
                 {!isUnlocked && (
                   <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    fontSize: 12.5, color: T.muted, marginBottom: 20, lineHeight: 1.4,
+                    background: T.bgAlt, borderRadius: 12, padding: '12px 14px', marginBottom: 18,
+                    border: `1px dashed ${T.line}`,
                   }}>
-                    <Icon.Lock s={13} c={T.muted}/>
-                    Complete the previous stage to explore this part of the path.
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Icon.Lock s={12} c={T.muted}/>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: T.muted, letterSpacing: '0.04em' }}>
+                        ON THE ROAD AHEAD
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {stage.moments.map(m => (
+                        <div key={m.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                          <div style={{ width: 5, height: 5, borderRadius: 999, background: T.muted, marginTop: 6, flexShrink: 0 }}/>
+                          <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.4 }}>{m.question}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.muted, marginTop: 10 }}>
+                      Unlocks when you complete the previous stage.
+                    </div>
                   </div>
                 )}
               </div>

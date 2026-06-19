@@ -1263,7 +1263,7 @@ function AssistantScreen({ onTab, child, openMap, openProfile, openSwitcher }) {
 
       {/* GPS life journey view */}
       {viewMode === 'gps' && (
-        <GPSMapContent child={child} openProfile={openProfile} openSwitcher={openSwitcher}/>
+        <GPSMapContent child={child} openProfile={openProfile} openSwitcher={openSwitcher} embedded/>
       )}
 
       {/* Guide view */}
