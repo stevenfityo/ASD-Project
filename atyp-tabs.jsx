@@ -8,12 +8,11 @@ function ProfileScreen({ onTab, back, child, openSection }) {
       title: 'Daily Care',
       items: [
         { key: 'routine',   I: Icon.Clipboard, label: 'Daily Routine',     sub: 'Meds, meals, therapy, sleep'     },
-        { key: 'documents', I: Icon.Folder,    label: 'Documents Vault',   sub: 'Reports, evaluations, records'   },
         { key: 'trusted',   I: Icon.Heart,     label: 'Trusted Person',    sub: 'Emergency guardian access'       },
       ]
     },
     {
-      title: 'Records',
+      title: 'Documents Vault',
       items: [
         { key: 'medical',   I: Icon.Hospital,  label: 'Medical',           sub: 'Doctors, medications, allergies' },
         { key: 'therapies', I: Icon.Brain,     label: 'Therapies',         sub: 'ABA, speech, occupational'       },
@@ -1171,7 +1170,7 @@ function AssistantScreen({ onTab, child, openMap, openProfile, openSwitcher }) {
   const [path, setPath] = React.useState([]);
   const [currentStep, setCurrentStep] = React.useState('start');
   const [done, setDone] = React.useState(false);
-  const [viewMode, setViewMode] = React.useState('guide');
+  const [viewMode, setViewMode] = React.useState('gps');
   const scrollRef = React.useRef(null);
 
   React.useEffect(() => {

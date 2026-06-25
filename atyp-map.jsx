@@ -277,20 +277,12 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   const currentIndex = currentStageIndex(childAge);
 
   const [answers, setAnswers] = React.useState({});
-  // activeChoice: { stage, moment } | null
-  const [activeChoice, setActiveChoice] = React.useState(null);
-  // Past stages (already lived) start collapsed to keep the focus on "now".
-  const [collapsed, setCollapsed] = React.useState(() => {
-    const init = {};
-    GPS_STAGES.forEach((s, i) => { if (i < currentIndex) init[s.id] = true; });
-    return init;
-  });
-  // Which answered cards have their insight expanded.
-  const [openInsight, setOpenInsight] = React.useState({});
+  // sheetStage: the stage whose question sheet (bottom popup) is open, or null.
+  const [sheetStage, setSheetStage] = React.useState(null);
+  // Whether the summary / forecast bottom sheet is open.
+  const [showSummary, setShowSummary] = React.useState(false);
 
   const getAnswer = (stageId, momentId) => answers[`${stageId}_${momentId}`];
-  const toggleCollapse = id => setCollapsed(c => ({ ...c, [id]: !c[id] }));
-  const toggleInsight = key => setOpenInsight(o => ({ ...o, [key]: !o[key] }));
 
   // Saving an answer may re-route the branch. Prune any answers that belonged
   // to moments past the one being (re)answered, so stale cards don't linger.
@@ -316,7 +308,6 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
       });
       return next;
     });
-    setActiveChoice(null);
   };
 
   // Precompute branch state + progressive unlock for every stage.
@@ -329,49 +320,71 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   const total = GPS_STAGES.length;
   const exploredCount = stageState.filter(s => s.path.steps.length > 0).length;
 
-  // ── Choice picker — rendered as an overlay on top of the timeline so the
-  //    timeline stays mounted and its scroll position is preserved. ───────
-  const pickerOverlay = activeChoice ? (() => {
-    const { stage, moment } = activeChoice;
-    const selectedId = getAnswer(stage.id, moment.id);
+  // ── Question sheet — steps through the active stage's questions one at a
+  //    time as a bottom popup. saveAnswer advances the branch automatically. ─
+  const questionSheet = sheetStage ? (() => {
+    const stage = sheetStage;
+    const path = stagePath(stage, answers);
+    const moment = path.nextMoment;
+    const done = !moment;
     return (
-      <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ paddingTop: embedded ? 16 : 54, paddingInline: 18, paddingBottom: 16, flexShrink: 0 }}>
-          <button onClick={() => setActiveChoice(null)} style={{
-            display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
-            cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, fontWeight: 700,
-            color: T.ink2, padding: '4px 0', marginBottom: 14,
-          }}>
-            <Icon.Back s={18} c={T.ink2}/> {stage.label}
-          </button>
-          <div style={{ background: T.greenSoft, borderRadius: 18, padding: '14px 18px' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{moment.question}</div>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div onClick={() => setSheetStage(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+        <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 32px', maxHeight: '88%', overflowY: 'auto', animation: 'atypSheetUp .28s ease' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
           </div>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {moment.choices.map(ch => {
-            const isSel = selectedId === ch.id;
-            return (
-              <button key={ch.id} onClick={() => saveAnswer(stage, moment.id, ch.id)} style={{
-                width: '100%', background: '#fff', borderRadius: 16, padding: '16px 18px',
-                border: `2px solid ${isSel ? T.green : T.line}`,
-                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                display: 'flex', gap: 14, alignItems: 'flex-start',
-                boxShadow: isSel ? `0 0 0 1px ${T.green}` : '0 2px 8px rgba(27,36,33,0.05)',
-                transition: 'border-color .14s',
-              }}>
-                <div style={{ fontSize: 24, flexShrink: 0, marginTop: 2 }}>{ch.emoji}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>{ch.label}</div>
-                  {isSel && <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.55, marginTop: 6 }}>{ch.insight}</div>}
-                </div>
-                {isSel && <Icon.Check s={18} c={T.green} sw={2.5}/>}
-              </button>
-            );
-          })}
-          <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', marginTop: 4 }}>
-            There is no right answer — only your family's path.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: 14 }}>
+            <span style={{ fontSize: 20 }}>{stage.emoji}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink }}>{stage.label}</div>
+              <div style={{ fontSize: 11.5, color: T.muted }}>{stage.sub} · {stage.ageRange}</div>
+            </div>
+            <button onClick={() => setSheetStage(null)} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
           </div>
+
+          {done ? (
+            <div style={{ padding: '8px 0 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
+              <div style={{ width: 56, height: 56, borderRadius: 999, background: T.mint, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon.Check s={28} c="#fff" sw={2.8}/>
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: T.ink }}>Stage complete</div>
+              <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.5, maxWidth: 260 }}>
+                You've walked through {stage.label}. Your answers shape the road ahead.
+              </div>
+              <button onClick={() => setSheetStage(null)} style={{ marginTop: 6, width: '100%', height: 48, borderRadius: 14, border: 'none', background: T.green, color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Done</button>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.green, letterSpacing: '0.04em', marginBottom: 6 }}>
+                QUESTION {path.steps.length + 1}
+              </div>
+              <div style={{ background: T.greenSoft, borderRadius: 16, padding: '14px 16px', marginBottom: 14 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{moment.question}</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {moment.choices.map(ch => (
+                  <button key={ch.id} onClick={() => saveAnswer(stage, moment.id, ch.id)} style={{
+                    width: '100%', background: '#fff', borderRadius: 16, padding: '14px 16px',
+                    border: `2px solid ${T.line}`,
+                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                    display: 'flex', gap: 14, alignItems: 'flex-start',
+                    boxShadow: '0 2px 8px rgba(27,36,33,0.05)',
+                    transition: 'border-color .14s',
+                  }}>
+                    <div style={{ fontSize: 24, flexShrink: 0, marginTop: 2 }}>{ch.emoji}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>{ch.label}</div>
+                    </div>
+                    <Icon.ChevronRight s={16} c={T.muted}/>
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', marginTop: 12 }}>
+                There is no right answer — only your family's path.
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -382,58 +395,65 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
     .filter(s => s.path.complete && s.path.steps.length > 0)
     .map(s => ({ stage: s.stage, steps: s.path.steps }));
 
-  // Colour of the connector line for a given stage index.
-  const lineColor = (idx) => {
-    const s = stageState[idx];
-    if (s.path.complete && s.path.steps.length > 0) return T.mint;
-    if (idx <= currentIndex) return T.green;
-    return T.line;
-  };
-
-  // Renders a single answered step with an expandable insight.
-  const AnsweredCard = ({ stage, moment, choice }) => {
-    const key = `${stage.id}_${moment.id}`;
-    const open = !!openInsight[key];
-    return (
-      <div style={{ background: '#fff', border: `1.5px solid ${T.green}`, borderRadius: 12,
-        boxShadow: '0 2px 8px rgba(45,106,79,0.08)', overflow: 'hidden' }}>
-        <button onClick={() => toggleInsight(key)} style={{
-          width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-          textAlign: 'left', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <div style={{ width: 22, height: 22, borderRadius: 999, flexShrink: 0, background: T.green,
-            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon.Check s={12} c="#fff" sw={2.5}/>
+  // ── Summary / forecast sheet — the final node opens this bottom popup. ──
+  const summarySheet = showSummary ? (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <div onClick={() => setShowSummary(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+      <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 32px', maxHeight: '88%', overflowY: 'auto', animation: 'atypSheetUp .28s ease' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
+        </div>
+        <div style={{ fontSize: 19, fontWeight: 800, color: T.ink, letterSpacing: '-0.02em', marginTop: 6, marginBottom: 4 }}>
+          Your family's path so far
+        </div>
+        <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, marginBottom: 16 }}>
+          A picture of the journey, shaped by the choices you've made.
+        </div>
+        {summary.length === 0 ? (
+          <div style={{ background: T.greenSoft, borderRadius: 14, padding: '18px 16px', fontSize: 13, color: T.ink2, lineHeight: 1.55, textAlign: 'center' }}>
+            Answer a few questions on the map to see your path take shape.
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: T.muted, fontWeight: 600, marginBottom: 1 }}>{moment.question}</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>
-              {choice ? `${choice.emoji} ${choice.label}` : '—'}
-            </div>
-          </div>
-          <div style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }}>
-            <Icon.ChevronDown s={16} c={T.muted}/>
-          </div>
-        </button>
-        {open && (
-          <div style={{ padding: '0 14px 12px 46px' }}>
-            <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.55, marginBottom: 8 }}>
-              {choice ? choice.insight : ''}
-            </div>
-            <button onClick={() => setActiveChoice({ stage, moment })} style={{
-              background: T.greenSoft, border: 'none', borderRadius: 99, padding: '5px 12px',
-              cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: T.green,
-            }}>Change answer</button>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {summary.map(({ stage, steps }) => (
+              <div key={stage.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                  <span style={{ fontSize: 15 }}>{stage.emoji}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>{stage.label}</span>
+                </div>
+                {steps.map(({ moment, choice }) => (
+                  <div key={moment.id} style={{ background: T.bgAlt, borderRadius: 12, padding: '10px 12px', marginBottom: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 3 }}>
+                      {choice ? `${choice.emoji} ${choice.label}` : '—'}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: T.ink2, lineHeight: 1.5 }}>
+                      {choice ? choice.insight : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         )}
       </div>
-    );
-  };
+    </div>
+  ) : null;
 
-  // ── Timeline view ────────────────────────────────────────────────────
+  // ── Node-path geometry (Duolingo-style serpentine) ───────────────────
+  const BOARD_W = 300, NODE_GAP = 108, TOP = 56;
+  const WAVE = [0, 74, 0, -74];
+  const nodePos = (i) => ({ x: BOARD_W / 2 + WAVE[i % WAVE.length], y: TOP + i * NODE_GAP });
+  const allCenters = GPS_STAGES.map((_, i) => nodePos(i));
+  const summaryCenter = nodePos(GPS_STAGES.length);
+  allCenters.push(summaryCenter);
+  const boardH = summaryCenter.y + 96;
+  const summaryUnlocked = exploredCount > 0;
+
+  // ── Node-path view ───────────────────────────────────────────────────
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {pickerOverlay}
+      {questionSheet}
+      {summarySheet}
       {/* Child pill */}
       <div style={{ flexShrink: 0, paddingTop: topPad, paddingInline: 18, paddingBottom: 12,
         background: 'linear-gradient(180deg, rgba(248,246,241,1) 80%, rgba(248,246,241,0))',
@@ -476,203 +496,87 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
           </div>
         </div>
 
-        {GPS_STAGES.map((stage, i) => {
-          const { path } = stageState[i];
-          const isUnlocked = unlocked[i];
-          const isComplete = path.complete && isUnlocked && path.steps.length > 0;
-          const isHere     = i === hereIndex;
-          const isPast     = i < currentIndex;
-          const isCollapsed = isUnlocked && collapsed[stage.id];
-          const isLast     = i === GPS_STAGES.length - 1;
+        {/* Winding node path */}
+        <div style={{ position: 'relative', width: BOARD_W, height: boardH, margin: '6px auto 0' }}>
+          {/* connectors between consecutive node centres */}
+          <svg width={BOARD_W} height={boardH} style={{ position: 'absolute', left: 0, top: 0 }}>
+            {allCenters.slice(1).map((c, idx) => {
+              const prev = allCenters[idx];
+              const st = stageState[idx];
+              const filled = st && st.path.complete && st.path.steps.length > 0;
+              return (
+                <line key={idx} x1={prev.x} y1={prev.y} x2={c.x} y2={c.y}
+                  stroke={filled ? T.mint : T.line} strokeWidth={4} strokeLinecap="round"
+                  strokeDasharray={filled ? 'none' : '2 9'}/>
+              );
+            })}
+          </svg>
 
-          const nodeColor  = isComplete ? T.mint : isHere ? T.green : isUnlocked ? '#CFE3D6' : '#E8EBE7';
-          const nodeBorder = !isUnlocked ? `2px dashed ${T.line}` : 'none';
-          const lineBelow  = lineColor(i);
-          const lineAbove  = i > 0 ? lineColor(i - 1) : 'transparent';
-          const answeredCount = path.steps.length;
+          {/* stage nodes */}
+          {GPS_STAGES.map((stage, i) => {
+            const { path } = stageState[i];
+            const isUnlocked = unlocked[i];
+            const isComplete = path.complete && isUnlocked && path.steps.length > 0;
+            const isHere     = i === hereIndex;
+            const answered   = path.steps.length;
+            const { x, y }   = allCenters[i];
+            const size       = isHere ? 66 : 58;
+            const nodeColor  = isComplete ? T.mint : isHere ? T.green : isUnlocked ? '#CFE3D6' : '#E8EBE7';
+            const nodeBorder = !isUnlocked ? `2px dashed ${T.line}` : 'none';
 
-          return (
-            <div key={stage.id} style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
-              {/* Left: connector + node */}
-              <div style={{ width: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                <div style={{ width: 2, height: i === 0 ? 8 : 20, background: lineAbove, borderRadius: 1 }}/>
-                <div style={{
-                  width: isHere ? 40 : 32, height: isHere ? 40 : 32,
-                  borderRadius: 999, background: nodeColor, border: nodeBorder,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, position: 'relative',
-                  boxShadow: isHere ? '0 6px 20px rgba(45,106,79,0.30)' : isComplete ? '0 2px 8px rgba(45,106,79,0.15)' : 'none',
-                  transition: 'all .2s',
-                }}>
-                  {isComplete
-                    ? <Icon.Check s={16} c="#fff" sw={2.8}/>
-                    : <span style={{ fontSize: isHere ? 20 : 16, opacity: isUnlocked ? 1 : 0.5 }}>{stage.emoji}</span>
-                  }
-                  {isHere && (
-                    <div style={{
-                      position: 'absolute', top: -4, right: -4,
-                      width: 14, height: 14, borderRadius: 999,
-                      background: '#E63946', border: '2px solid #fff',
-                      boxShadow: '0 1px 4px rgba(230,57,70,0.5)',
-                    }}/>
-                  )}
-                </div>
-                {!isLast && (
-                  <div style={{ width: 2, flex: 1, minHeight: 24, background: lineBelow, borderRadius: 1 }}/>
-                )}
-              </div>
-
-              {/* Right: stage content */}
-              <div style={{ flex: 1, paddingLeft: 14, paddingTop: i === 0 ? 4 : 12, paddingBottom: isLast ? 0 : 4 }}>
-                {/* Stage header — tap to collapse/expand when unlocked */}
+            return (
+              <React.Fragment key={stage.id}>
                 <button
-                  onClick={isUnlocked ? () => toggleCollapse(stage.id) : undefined}
+                  onClick={isUnlocked ? () => setSheetStage(stage) : undefined}
                   style={{
-                    width: '100%', background: 'none', border: 'none', padding: 0,
-                    marginBottom: !isUnlocked ? 14 : isCollapsed ? 8 : 10,
-                    cursor: isUnlocked ? 'pointer' : 'default', fontFamily: 'inherit', textAlign: 'left',
-                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                    position: 'absolute', left: x - size / 2, top: y - size / 2,
+                    width: size, height: size, borderRadius: 999, padding: 0,
+                    background: nodeColor, border: nodeBorder,
+                    cursor: isUnlocked ? 'pointer' : 'default', fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: isHere ? '0 8px 22px rgba(45,106,79,0.32)' : isComplete ? '0 4px 12px rgba(45,106,79,0.18)' : '0 2px 6px rgba(27,36,33,0.06)',
+                    transition: 'all .2s',
                   }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: isHere ? 15 : 14, fontWeight: 700, color: !isUnlocked ? T.muted : T.ink }}>
-                        {stage.label}
-                      </span>
-                      {isHere && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, color: '#E63946',
-                          background: 'rgba(230,57,70,0.10)', borderRadius: 99,
-                          padding: '2px 7px', letterSpacing: '0.03em',
-                        }}>YOU ARE HERE</span>
-                      )}
-                      {isPast && (
-                        <span style={{
-                          fontSize: 9.5, fontWeight: 700, color: T.muted,
-                          background: T.bgAlt, borderRadius: 99, padding: '2px 7px', letterSpacing: '0.03em',
-                        }}>LIVED</span>
-                      )}
-                      {isComplete && answeredCount > 0 && (
-                        <span style={{ fontSize: 10.5, fontWeight: 600, color: T.mint }}>{answeredCount} ✓</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
-                      {stage.sub} · {stage.ageRange}
-                    </div>
-                  </div>
-                  {isUnlocked && (
-                    <div style={{ transform: isCollapsed ? 'none' : 'rotate(180deg)', transition: 'transform .15s', marginTop: 2 }}>
-                      <Icon.ChevronDown s={16} c={T.muted}/>
-                    </div>
+                  {isComplete
+                    ? <Icon.Check s={24} c="#fff" sw={2.8}/>
+                    : !isUnlocked
+                      ? <Icon.Lock s={20} c={T.muted}/>
+                      : <span style={{ fontSize: isHere ? 28 : 24 }}>{stage.emoji}</span>}
+                  {isHere && (
+                    <div style={{ position: 'absolute', top: -3, right: -3, width: 16, height: 16, borderRadius: 999, background: '#E63946', border: '2px solid #fff', boxShadow: '0 1px 4px rgba(230,57,70,0.5)' }}/>
+                  )}
+                  {answered > 0 && !isComplete && (
+                    <div style={{ position: 'absolute', bottom: -3, right: -3, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 999, background: T.green, color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>{answered}</div>
                   )}
                 </button>
-
-                {/* Collapsed unlocked stage: one-line summary */}
-                {isUnlocked && isCollapsed && (
-                  <div style={{ fontSize: 12, color: T.muted, marginBottom: 18 }}>
-                    {answeredCount > 0
-                      ? `${answeredCount} answered · tap to view`
-                      : 'Tap to revisit this stage'}
-                  </div>
-                )}
-
-                {/* Expanded unlocked stage: the branch */}
-                {isUnlocked && !isCollapsed && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 18 }}>
-                    {path.steps.map(({ moment, choice }) => (
-                      <AnsweredCard key={moment.id} stage={stage} moment={moment} choice={choice}/>
-                    ))}
-
-                    {path.nextMoment && (
-                      <button
-                        onClick={() => setActiveChoice({ stage, moment: path.nextMoment })}
-                        style={{
-                          background: T.bgAlt,
-                          border: `1.5px solid ${isHere ? T.green : T.line}`,
-                          borderRadius: 12, padding: '10px 14px',
-                          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                          display: 'flex', alignItems: 'center', gap: 10,
-                        }}>
-                        <div style={{
-                          width: 22, height: 22, borderRadius: 999, flexShrink: 0, background: '#D6D9D2',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <div style={{ width: 6, height: 6, borderRadius: 999, background: '#fff' }}/>
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: T.ink2, lineHeight: 1.35, flex: 1 }}>
-                          {path.nextMoment.question}
-                        </div>
-                        <Icon.ChevronRight s={14} c={T.muted}/>
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Locked future stage: a teaser of what's ahead */}
-                {!isUnlocked && (
-                  <div style={{
-                    background: T.bgAlt, borderRadius: 12, padding: '12px 14px', marginBottom: 18,
-                    border: `1px dashed ${T.line}`,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                      <Icon.Lock s={12} c={T.muted}/>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: T.muted, letterSpacing: '0.04em' }}>
-                        ON THE ROAD AHEAD
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {stage.moments.map(m => (
-                        <div key={m.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                          <div style={{ width: 5, height: 5, borderRadius: 999, background: T.muted, marginTop: 6, flexShrink: 0 }}/>
-                          <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.4 }}>{m.question}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: 11, color: T.muted, marginTop: 10 }}>
-                      Unlocks when you complete the previous stage.
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Path summary — appears once at least one stage is complete */}
-        {summary.length > 0 && (
-          <div style={{
-            marginTop: 8, background: T.greenSoft, borderRadius: 18, padding: '16px 18px',
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: T.ink, marginBottom: 4 }}>
-              Your family's path so far
-            </div>
-            <div style={{ fontSize: 12, color: T.ink2, lineHeight: 1.5, marginBottom: 14 }}>
-              A picture of the journey, shaped by the choices you've made.
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {summary.map(({ stage, steps }) => (
-                <div key={stage.id}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
-                    <span style={{ fontSize: 15 }}>{stage.emoji}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>{stage.label}</span>
-                  </div>
-                  {steps.map(({ moment, choice }) => (
-                    <div key={moment.id} style={{
-                      background: '#fff', borderRadius: 12, padding: '10px 12px',
-                      marginBottom: 6, border: `1px solid ${T.line}`,
-                    }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 3 }}>
-                        {choice ? `${choice.emoji} ${choice.label}` : '—'}
-                      </div>
-                      <div style={{ fontSize: 11.5, color: T.ink2, lineHeight: 1.5 }}>
-                        {choice ? choice.insight : ''}
-                      </div>
-                    </div>
-                  ))}
+                <div style={{ position: 'absolute', left: x, top: y + size / 2 + 5, transform: 'translateX(-50%)', width: 138, textAlign: 'center', pointerEvents: 'none' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: isUnlocked ? T.ink : T.muted, lineHeight: 1.2 }}>{stage.label}</div>
+                  <div style={{ fontSize: 10.5, color: T.muted, marginTop: 1 }}>{stage.ageRange}</div>
+                  {isHere && <div style={{ fontSize: 9.5, fontWeight: 700, color: '#E63946', marginTop: 2, letterSpacing: '0.03em' }}>YOU ARE HERE</div>}
                 </div>
-              ))}
-            </div>
+              </React.Fragment>
+            );
+          })}
+
+          {/* summary / forecast node */}
+          <button
+            onClick={summaryUnlocked ? () => setShowSummary(true) : undefined}
+            style={{
+              position: 'absolute', left: summaryCenter.x - 33, top: summaryCenter.y - 33,
+              width: 66, height: 66, borderRadius: 999, padding: 0,
+              background: summaryUnlocked ? '#FFF3D6' : '#E8EBE7',
+              border: summaryUnlocked ? 'none' : `2px dashed ${T.line}`,
+              cursor: summaryUnlocked ? 'pointer' : 'default', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: summaryUnlocked ? '0 6px 16px rgba(156,122,26,0.22)' : 'none',
+            }}>
+            <span style={{ fontSize: 28, opacity: summaryUnlocked ? 1 : 0.5 }}>🏁</span>
+          </button>
+          <div style={{ position: 'absolute', left: summaryCenter.x, top: summaryCenter.y + 38, transform: 'translateX(-50%)', width: 138, textAlign: 'center', pointerEvents: 'none' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: summaryUnlocked ? T.ink : T.muted, lineHeight: 1.2 }}>Your path</div>
+            <div style={{ fontSize: 10.5, color: T.muted, marginTop: 1 }}>Summary &amp; forecast</div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

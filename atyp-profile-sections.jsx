@@ -39,40 +39,52 @@ function AddDashedBtn({ label, onClick }) {
   );
 }
 
+function FileRow({ name, meta, ext = 'PDF', tint = T.green, bg = T.greenSoft, onDelete }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, padding: '10px 14px', boxShadow: `inset 0 0 0 1px ${T.line}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ width: 36, height: 36, borderRadius: 9, background: bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon.Paperclip s={17} c={tint}/>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
+        {meta && <div style={{ fontSize: 11.5, color: T.muted, marginTop: 2 }}>{meta}</div>}
+      </div>
+      <span style={{ fontSize: 10, fontWeight: 700, color: tint, background: bg, padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>{ext}</span>
+      {onDelete && (
+        <button onClick={onDelete} style={{ width: 26, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', background: '#FEE2E2', color: '#C25450', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, fontWeight: 700 }}>×</button>
+      )}
+    </div>
+  );
+}
+
+// Files group reused by every Documents Vault category — supports delete + upload.
+// `tint`/`bg` colour the file chips. `initial` is the starting list of { name, meta, ext }.
+function FilesGroup({ initial = [], tint = T.green, bg = T.greenSoft }) {
+  const [files, setFiles] = React.useState(initial.map((f, i) => ({ ...f, id: 'f' + i })));
+  const remove = (id) => setFiles(s => s.filter(f => f.id !== id));
+  const upload = () => {
+    const n = files.length + 1;
+    setFiles(s => [...s, { id: 'f' + Date.now(), name: `New document ${n}.pdf`, meta: 'Uploaded just now · 0.4 MB', ext: 'PDF' }]);
+  };
+  return (
+    <InfoGroup label="Files">
+      {files.map(f => <FileRow key={f.id} name={f.name} meta={f.meta} ext={f.ext} tint={tint} bg={bg} onDelete={() => remove(f.id)}/>)}
+      <AddDashedBtn label="Upload document" onClick={upload}/>
+    </InfoGroup>
+  );
+}
+
 // ── Medical ────────────────────────────────────────────────────────────
 
 function ProfileMedicalScreen({ back }) {
-  const [doctors, setDoctors] = React.useState([
-    { id: 'd1', title: 'Dr. Sarah Chen', sub: 'Developmental Pediatrician · Next: Jun 12', badge: 'Primary' },
-    { id: 'd2', title: 'Dr. Mark Wilson', sub: 'Neurologist · Next: Aug 3' },
-  ]);
-  const [meds, setMeds] = React.useState([
-    { id: 'm1', title: 'Melatonin 2.5 mg', sub: 'Nightly · 30 min before bed' },
-    { id: 'm2', title: 'Omega-3 (Nordic Naturals)', sub: '1 capsule daily · with breakfast' },
-    { id: 'm3', title: 'Magnesium Glycinate 100 mg', sub: 'Nightly · supports sleep' },
-  ]);
-  const [allergies, setAllergies] = React.useState([
-    { id: 'a1', title: 'Casein (dairy)', sub: 'GI distress, behavioral changes' },
-    { id: 'a2', title: 'Red dye #40', sub: 'Hyperactivity spike' },
-  ]);
-  const del = (setter) => (id) => setter(s => s.filter(i => i.id !== id));
-
   return (
     <Screen bg={T.bg}>
       <ScreenHeader title="Medical" onBack={back} sticky={false}/>
       <div style={{ padding: '0 18px 32px' }}>
-        <InfoGroup label="Doctors">
-          {doctors.map(d => <InfoRow key={d.id} I={Icon.Hospital} tint="#C25450" bg="#F5E1E0" title={d.title} sub={d.sub} badge={d.badge} onDelete={() => del(setDoctors)(d.id)}/>)}
-          <AddDashedBtn label="Add doctor" onClick={() => {}}/>
-        </InfoGroup>
-        <InfoGroup label="Medications">
-          {meds.map(m => <InfoRow key={m.id} I={Icon.Bulb} tint="#9C5E3A" bg="#F2E4D8" title={m.title} sub={m.sub} onDelete={() => del(setMeds)(m.id)}/>)}
-          <AddDashedBtn label="Add medication" onClick={() => {}}/>
-        </InfoGroup>
-        <InfoGroup label="Allergies & Sensitivities">
-          {allergies.map(a => <InfoRow key={a.id} I={Icon.Bell} tint="#C25450" bg="#FEE2E2" title={a.title} sub={a.sub} onDelete={() => del(setAllergies)(a.id)}/>)}
-          <AddDashedBtn label="Add allergy" onClick={() => {}}/>
-        </InfoGroup>
+        <FilesGroup tint="#C25450" bg="#F5E1E0" initial={[
+          { name: 'Diagnostic Report.pdf',   meta: 'Autism dx · Dr. Chen · Jan 2024 · 1.2 MB', ext: 'PDF' },
+          { name: 'Primary Care Summary.pdf', meta: 'Annual physical · Jan 2026 · 480 KB',      ext: 'PDF' },
+        ]}/>
       </div>
     </Screen>
   );
@@ -81,36 +93,14 @@ function ProfileMedicalScreen({ back }) {
 // ── Therapies ─────────────────────────────────────────────────────────
 
 function ProfileTherapiesScreen({ back }) {
-  const [therapies, setTherapies] = React.useState([
-    { id: 't1', title: 'ABA Therapy', detail: 'Jennifer L., BCBA', schedule: 'Mon–Fri 3–7 PM · 24h/week', I: Icon.Brain, tint: T.blue, bg: '#E4EEF6' },
-    { id: 't2', title: 'Speech Therapy', detail: 'Tom R., SLP', schedule: 'Tue & Thu 4–5 PM · 2×/week', I: Icon.Pen, tint: T.green, bg: T.greenSoft },
-    { id: 't3', title: 'Occupational Therapy', detail: 'Amy K., OTR/L', schedule: 'Wed 3–4 PM · 1×/week', I: Icon.Hand, tint: '#8B5BAE', bg: '#EDE3F4' },
-  ]);
-
   return (
     <Screen bg={T.bg}>
-      <ScreenHeader title="Therapies" onBack={back} sticky={false}
-        right={<button style={{ height: 32, padding: '0 12px', borderRadius: 999, background: T.greenSoft, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: T.green, display: 'flex', alignItems: 'center', gap: 5 }}><Icon.Plus s={13} c={T.green}/> Add</button>}
-      />
-      <div style={{ padding: '0 18px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {therapies.map(t => (
-          <div key={t.id} style={{ background: '#fff', borderRadius: 18, padding: '14px 16px', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 12, background: t.bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <t.I s={20} c={t.tint}/>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15.5, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em' }}>{t.title}</div>
-                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{t.detail}</div>
-              </div>
-              <span style={{ fontSize: 10.5, fontWeight: 700, color: t.tint, background: t.bg, padding: '3px 9px', borderRadius: 999 }}>Active</span>
-            </div>
-            <div style={{ background: T.bgAlt, borderRadius: 10, padding: '8px 12px', fontSize: 13, color: T.ink2, fontWeight: 600 }}>
-              {t.schedule}
-            </div>
-          </div>
-        ))}
-        <AddDashedBtn label="Add therapy" onClick={() => {}}/>
+      <ScreenHeader title="Therapies" onBack={back} sticky={false}/>
+      <div style={{ padding: '0 18px 32px' }}>
+        <FilesGroup tint={T.blue} bg="#E4EEF6" initial={[
+          { name: 'Speech Assessment.pdf', meta: 'Annual evaluation · Tom R., SLP · Nov 2025 · 860 KB', ext: 'PDF' },
+          { name: 'OT Evaluation.pdf',     meta: 'Sensory profile · Amy K., OTR · Oct 2025 · 1.0 MB',  ext: 'PDF' },
+        ]}/>
       </div>
     </Screen>
   );
@@ -119,58 +109,14 @@ function ProfileTherapiesScreen({ back }) {
 // ── Education & IEP ───────────────────────────────────────────────────
 
 function ProfileEducationScreen({ back }) {
-  const accommodations = ['Extended time (1.5×)', 'Quiet testing room', 'Sensory breaks every 90 min', 'Preferential seating near teacher', 'Fidget tools allowed'];
-  const goals = [
-    { title: 'Reading comprehension', progress: 65, label: 'On track' },
-    { title: 'Peer social interaction', progress: 38, label: 'Developing' },
-    { title: 'Written expression', progress: 55, label: 'On track' },
-  ];
-
   return (
     <Screen bg={T.bg}>
       <ScreenHeader title="Education & IEP" onBack={back} sticky={false}/>
       <div style={{ padding: '0 18px 32px' }}>
-        <InfoGroup label="School">
-          <InfoRow I={Icon.School} title="Lincoln Middle School" sub="Grade 5 · Homeroom: Mrs. Johnson"/>
-        </InfoGroup>
-
-        <InfoGroup label="IEP Status">
-          <div style={{ background: '#fff', borderRadius: 14, padding: '14px', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>IEP 2026</div>
-                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>Renewed March 2026 · Valid 1 year</div>
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: T.green, background: T.greenSoft, padding: '3px 9px', borderRadius: 999 }}>Active</span>
-            </div>
-            <div style={{ background: '#FFF9E6', borderRadius: 10, padding: '8px 12px' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#9C7A1A' }}>Next review: March 2027</div>
-            </div>
-          </div>
-        </InfoGroup>
-
-        <InfoGroup label="Accommodations">
-          {accommodations.map((a, i) => (
-            <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '10px 14px', boxShadow: `inset 0 0 0 1px ${T.line}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Icon.Check s={14} c={T.green} sw={2.5}/>
-              <span style={{ fontSize: 13.5, fontWeight: 600, color: T.ink }}>{a}</span>
-            </div>
-          ))}
-        </InfoGroup>
-
-        <InfoGroup label="Active Goals">
-          {goals.map((g, i) => (
-            <div key={i} style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>{g.title}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: g.progress >= 50 ? T.green : T.yellow }}>{g.label}</span>
-              </div>
-              <div style={{ height: 4, background: T.line, borderRadius: 999 }}>
-                <div style={{ width: `${g.progress}%`, height: '100%', background: g.progress >= 50 ? T.green : T.yellow, borderRadius: 999 }}/>
-              </div>
-            </div>
-          ))}
-        </InfoGroup>
+        <FilesGroup initial={[
+          { name: 'IEP 2026.pdf',         meta: 'Renewed Mar 2026 · 24 pages · 1.8 MB',  ext: 'PDF' },
+          { name: 'Psych Evaluation.pdf', meta: 'School psychologist · Feb 2026 · 1.1 MB', ext: 'PDF' },
+        ]}/>
       </div>
     </Screen>
   );
@@ -179,19 +125,14 @@ function ProfileEducationScreen({ back }) {
 // ── Legal & Financial ─────────────────────────────────────────────────
 
 function ProfileLegalScreen({ back }) {
-  const items = [
-    { I: Icon.Scale,     title: 'Guardianship',        sub: 'Not yet applicable · Emma is 10',    badge: 'Age 18+',    tint: T.muted,   bg: T.bgAlt },
-    { I: Icon.Folder,    title: 'ABLE Account',         sub: 'Opened 2023 · Tax-advantaged savings', badge: 'Active',  tint: T.green,   bg: T.greenSoft },
-    { I: Icon.Bookmark,  title: 'Special Needs Trust',  sub: 'In progress · Attorney: pending',    badge: 'Pending',   tint: '#9C7A1A', bg: '#FFF9E6' },
-    { I: Icon.Clipboard, title: 'SSI Benefits',         sub: 'Review due Aug 2026',                badge: 'Review',    tint: T.blue,    bg: '#E4EEF6' },
-  ];
-
   return (
     <Screen bg={T.bg}>
       <ScreenHeader title="Legal & Financial" onBack={back} sticky={false}/>
-      <div style={{ padding: '0 18px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {items.map((it, i) => <InfoRow key={i} I={it.I} tint={it.tint} bg={it.bg} title={it.title} sub={it.sub} badge={it.badge}/>)}
-        <AddDashedBtn label="Add item" onClick={() => {}}/>
+      <div style={{ padding: '0 18px 32px' }}>
+        <FilesGroup tint="#9C5E3A" bg="#F2E4D8" initial={[
+          { name: 'ABLE Account Statement.pdf', meta: 'Tax-advantaged savings · 2025 · 540 KB', ext: 'PDF' },
+          { name: 'SSI Benefits Letter.pdf',    meta: 'Award letter · Review Aug 2026 · 280 KB', ext: 'PDF' },
+        ]}/>
       </div>
     </Screen>
   );

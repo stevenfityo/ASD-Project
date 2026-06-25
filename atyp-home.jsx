@@ -120,31 +120,6 @@ function HomeScreen({ onTab, openProfile, openStage, openQuestion, child, openSw
         </div>
       </div>
 
-      {/* Documents Vault quick access */}
-      <div style={{ padding: '8px 18px 20px' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-          Documents Vault
-        </div>
-        <button onClick={() => openSection && openSection('documents')} style={{
-          width: '100%', background: '#fff', borderRadius: 16,
-          boxShadow: `inset 0 0 0 1px ${T.line}`, border: 'none', cursor: 'pointer',
-          fontFamily: 'inherit', textAlign: 'left', padding: '14px 16px',
-          display: 'flex', alignItems: 'center', gap: 14,
-        }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12, background: T.greenSoft, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Icon.Folder s={22} c={T.green}/>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em' }}>Reports & Records</div>
-            <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>Evaluations, IEP docs, medical reports</div>
-          </div>
-          <Icon.ChevronRight s={18} c={T.muted}/>
-        </button>
-      </div>
-
     </Screen>
   );
 }
