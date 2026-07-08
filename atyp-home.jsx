@@ -29,16 +29,12 @@ function HomeScreen({ onTab, openProfile, openStage, openQuestion, child, openSw
               Maria
             </div>
           </div>
-          <button style={{
+          <button onClick={() => onTab('profile')} title="Account" aria-label="Account" style={{
             width: 42, height: 42, borderRadius: 999, border: 'none', cursor: 'pointer',
-            background: '#fff', boxShadow: `inset 0 0 0 1px ${T.line}`, position: 'relative',
+            background: '#fff', boxShadow: `inset 0 0 0 1px ${T.line}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <Icon.Bell s={20} c={T.ink2}/>
-            <div style={{
-              position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 999,
-              background: T.green, border: '2px solid #fff',
-            }}/>
+            <Icon.User s={20} c={T.ink2}/>
           </button>
         </div>
       </div>

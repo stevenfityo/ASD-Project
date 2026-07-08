@@ -23,8 +23,8 @@ function ProfileScreen({ onTab, back, child, openSection }) {
   ];
 
   return (
-    <Screen bg={T.bg} bottomTab={<TabBar active="home" onTab={onTab} />}>
-      <ScreenHeader title="Child profile" onBack={back} sticky={false} right={
+    <Screen bg={T.bg} bottomTab={<TabBar active="infohub" onTab={onTab} />}>
+      <ScreenHeader title="Information Hub" sticky={false} right={
         <button style={{
           display: 'flex', alignItems: 'center', gap: 5,
           height: 34, padding: '0 12px', borderRadius: 999,
@@ -46,13 +46,17 @@ function ProfileScreen({ onTab, back, child, openSection }) {
         }}>{child.initials}</div>
         <div style={{ fontSize: 21, fontWeight: 700, color: T.ink, marginTop: 10, letterSpacing: '-0.02em' }}>{child.name}</div>
         <div style={{ fontSize: 13, color: T.muted, marginTop: 3 }}>{child.dob} · {child.age} years old</div>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          background: T.greenSoft, padding: '4px 11px', borderRadius: 999,
-          fontSize: 11, fontWeight: 700, color: T.green, letterSpacing: '0.04em', marginTop: 8,
-        }}>
-          <span style={{ width: 5, height: 5, borderRadius: 999, background: T.green }}/>
-          {child.diagnosis.toUpperCase()}
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 8 }}>
+          {(child.diagnoses || [child.diagnosis]).map((dx, i) => (
+            <div key={i} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: T.greenSoft, padding: '4px 11px', borderRadius: 999,
+              fontSize: 11, fontWeight: 700, color: T.green, letterSpacing: '0.04em',
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: 999, background: T.green }}/>
+              {dx.toUpperCase()}
+            </div>
+          ))}
         </div>
       </div>
 

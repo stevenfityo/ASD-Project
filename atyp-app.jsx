@@ -48,6 +48,7 @@ function App() {
     if (tab === 'map') setScreen('map');else
     if (tab === 'market') setScreen('market');else
     if (tab === 'assistant') setScreen('assistant');else
+    if (tab === 'infohub') setScreen('profile');else
     if (tab === 'profile') setScreen('userProfile');else
     if (tab === 'map') setScreen('map');
   }, []);

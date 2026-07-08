@@ -57,19 +57,87 @@ function FileRow({ name, meta, ext = 'PDF', tint = T.green, bg = T.greenSoft, on
   );
 }
 
-// Files group reused by every Documents Vault category — supports delete + upload.
+// Files group reused by every Documents Vault category — supports delete + a
+// visual upload flow: pick a source (camera / photos / files) → preview → attach.
 // `tint`/`bg` colour the file chips. `initial` is the starting list of { name, meta, ext }.
 function FilesGroup({ initial = [], tint = T.green, bg = T.greenSoft }) {
   const [files, setFiles] = React.useState(initial.map((f, i) => ({ ...f, id: 'f' + i })));
+  // step: 'idle' | 'source' | 'preview'
+  const [step, setStep] = React.useState('idle');
+  const [pending, setPending] = React.useState(null);
   const remove = (id) => setFiles(s => s.filter(f => f.id !== id));
-  const upload = () => {
+
+  const SOURCES = [
+    { key: 'camera', label: 'Take photo',    sub: 'Scan a document with the camera', I: Icon.Camera },
+    { key: 'photos', label: 'Photo Library', sub: 'Pick an existing image',          I: Icon.Image  },
+    { key: 'files',  label: 'Files',         sub: 'Browse PDFs and documents',       I: Icon.Folder },
+  ];
+
+  const pick = (key) => {
     const n = files.length + 1;
-    setFiles(s => [...s, { id: 'f' + Date.now(), name: `New document ${n}.pdf`, meta: 'Uploaded just now · 0.4 MB', ext: 'PDF' }]);
+    const p = key === 'camera' ? { name: `Scan ${n}.jpg`,     ext: 'JPG', size: '0.8 MB', from: 'Camera' }
+            : key === 'photos' ? { name: `Photo ${n}.jpg`,    ext: 'JPG', size: '1.1 MB', from: 'Photo Library' }
+            :                     { name: `Document ${n}.pdf`, ext: 'PDF', size: '0.4 MB', from: 'Files' };
+    setPending(p);
+    setStep('preview');
   };
+
+  const attach = () => {
+    setFiles(s => [...s, { id: 'f' + Date.now(), name: pending.name, ext: pending.ext, meta: `${pending.from} · just now · ${pending.size}` }]);
+    reset();
+  };
+  const reset = () => { setPending(null); setStep('idle'); };
+
   return (
     <InfoGroup label="Files">
       {files.map(f => <FileRow key={f.id} name={f.name} meta={f.meta} ext={f.ext} tint={tint} bg={bg} onDelete={() => remove(f.id)}/>)}
-      <AddDashedBtn label="Upload document" onClick={upload}/>
+
+      {step === 'idle' && <AddDashedBtn label="Upload document" onClick={() => setStep('source')}/>}
+
+      {step === 'source' && (
+        <div style={{ marginTop: 4, background: '#fff', borderRadius: 14, padding: 12, boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: T.ink, marginBottom: 10, paddingLeft: 2 }}>Add a document</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {SOURCES.map(s => (
+              <button key={s.key} onClick={() => pick(s.key)} style={{
+                width: '100%', background: T.bg, border: `1px solid ${T.line}`, borderRadius: 12,
+                padding: '10px 12px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <s.I s={19} c={tint}/>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{s.label}</div>
+                  <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{s.sub}</div>
+                </div>
+                <Icon.ChevronRight s={15} c={T.muted}/>
+              </button>
+            ))}
+          </div>
+          <button onClick={reset} style={{ marginTop: 10, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.muted, padding: 4 }}>Cancel</button>
+        </div>
+      )}
+
+      {step === 'preview' && pending && (
+        <div style={{ marginTop: 4, background: '#fff', borderRadius: 14, padding: 12, boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: T.ink, marginBottom: 10, paddingLeft: 2 }}>Ready to upload</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: T.bg, borderRadius: 12, padding: '12px 14px', border: `1px solid ${T.line}` }}>
+            <div style={{ width: 44, height: 44, borderRadius: 10, background: bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon.Paperclip s={20} c={tint}/>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pending.name}</div>
+              <div style={{ fontSize: 11.5, color: T.muted, marginTop: 2 }}>{pending.from} · {pending.size}</div>
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, color: tint, background: bg, padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>{pending.ext}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button onClick={() => setStep('source')} style={{ flex: 1, height: 42, borderRadius: 12, border: `1px solid ${T.line}`, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, color: T.ink2 }}>Choose again</button>
+            <button onClick={attach} style={{ flex: 1, height: 42, borderRadius: 12, border: 'none', background: T.green, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, color: '#fff' }}>Attach</button>
+          </div>
+        </div>
+      )}
     </InfoGroup>
   );
 }

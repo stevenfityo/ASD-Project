@@ -26,12 +26,14 @@ const CHILDREN = [
 {
   id: 'emma', name: 'Emma', initials: 'E', age: 10, dob: '25 March 2016',
   diagnosis: 'ASD · Level 2', diagShort: 'ASD',
+  diagnoses: ['ASD · Level 2', 'Apraxia of Speech'],
   currentStageId: 'a3', currentStageLabel: 'Ages 9–13',
   color: '#2D6A4F'
 },
 {
   id: 'liam', name: 'Liam', initials: 'L', age: 23, dob: 'June 2003',
   diagnosis: 'ASD · Level 1', diagShort: 'ASD',
+  diagnoses: ['ASD · Level 1', 'Anxiety Disorder'],
   currentStageId: 'a6', currentStageLabel: 'Ages 22–30',
   color: '#3B82C4'
 }];
@@ -213,7 +215,7 @@ function TabBar({ active, onTab }) {
   { key: 'events',    label: 'Events',    I: Icon.Calendar },
   { key: 'assistant', label: 'Guide',     I: Icon.Sparkle },
   { key: 'market',    label: 'Market',    I: Icon.Store },
-  { key: 'profile',   label: 'Account',   I: Icon.User }];
+  { key: 'infohub',   label: 'Info Hub',  I: Icon.Folder }];
 
   return (
     <div style={{
