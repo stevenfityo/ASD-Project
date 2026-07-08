@@ -128,12 +128,8 @@ function App() {
   if (window.ATYP_MOBILE) {
     return (
       <div style={{ 
-        position: 'fixed', top: 0, left: 0, right: 0, height: '100dvh', 
+        width: '100%', minHeight: '100vh', 
         background: T.bg, overflow: 'hidden',
-        paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        paddingLeft: 'env(safe-area-inset-left)',
-        paddingRight: 'env(safe-area-inset-right)',
         boxSizing: 'border-box'
       }}>
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>{body}</div>

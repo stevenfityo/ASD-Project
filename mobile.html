@@ -3,32 +3,21 @@
 <head>
   <meta charset="utf-8"/>
   <title>aTyp</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
-  <!-- Standalone mode when added to the home screen -->
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="apple-mobile-web-app-title" content="aTyp"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="theme-color" content="#EFECE4"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <style>
     :root { color-scheme: light; }
-    html, body { margin: 0; padding: 0; height: 100%; height: 100dvh; }
+    html, body { margin: 0; padding: 0; height: 100%; }
     body {
       font-family: 'Manrope', -apple-system, system-ui, sans-serif;
       background: #EFECE4;
       color: #1B2421;
       -webkit-font-smoothing: antialiased;
-      overscroll-behavior: none;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
     }
     #root { height: 100%; }
-    /* hide all scrollbars */
-    *::-webkit-scrollbar { display: none; }
-    * { scrollbar-width: none; }
     button { font-family: inherit; }
 
     /* Pulse animation for current map node */
@@ -42,6 +31,8 @@
 </head>
 <body>
   <div id="root"></div>
+
+
 
   <script>window.ATYP_MOBILE = true;</script>
 
