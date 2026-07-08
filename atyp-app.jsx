@@ -128,7 +128,7 @@ function App() {
   if (window.ATYP_MOBILE) {
     return (
       <div style={{ 
-        width: '100%', minHeight: '100vh', 
+        width: '100%', height: '100vh', 
         background: T.bg, overflow: 'hidden',
         boxSizing: 'border-box'
       }}>
