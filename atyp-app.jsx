@@ -127,7 +127,15 @@ function App() {
   // no fake status bar / island / home indicator: the real device provides them.
   if (window.ATYP_MOBILE) {
     return (
-      <div style={{ position: 'fixed', inset: 0, background: T.bg, overflow: 'hidden' }}>
+      <div style={{ 
+        position: 'fixed', top: 0, left: 0, right: 0, height: '100dvh', 
+        background: T.bg, overflow: 'hidden',
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
+        boxSizing: 'border-box'
+      }}>
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>{body}</div>
 
         {showFab && !emergencyOpen && (
