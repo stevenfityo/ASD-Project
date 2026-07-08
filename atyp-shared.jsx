@@ -164,6 +164,7 @@ function ProgressRing({ size = 72, stroke = 6, value = 0, max = 1, color = T.gre
 // — Screen container with status bar + bottom tab bar slots ————————————
 
 function Screen({ children, bg = T.bg, bottomTab = null, padTop = true }) {
+  const isBrowser = window.ATYP_MOBILE; // mobile.html in regular browser, no phone frame
   return (
     <div style={{
       width: '100%', height: '100%', position: 'relative', background: bg,
@@ -171,8 +172,8 @@ function Screen({ children, bg = T.bg, bottomTab = null, padTop = true }) {
     }}>
       <div style={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden',
-        paddingTop: padTop ? 56 : 0, // status bar space
-        paddingBottom: bottomTab ? 96 : 34
+        paddingTop: padTop ? (isBrowser ? 12 : 56) : 0,
+        paddingBottom: bottomTab ? (isBrowser ? 68 : 96) : (isBrowser ? 10 : 34)
       }}>
         {children}
       </div>
@@ -242,7 +243,7 @@ function TabBar({ active, onTab }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0,
-      paddingBottom: 24, paddingTop: 10, paddingInline: 6,
+      paddingBottom: window.ATYP_MOBILE ? 8 : 24, paddingTop: 10, paddingInline: 6,
       background: 'rgba(248,246,241,0.92)',
       backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
       borderTop: `1px solid ${T.line}`,
