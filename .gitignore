@@ -1,3 +1,6 @@
 .DS_Store
 *.log
 .claude/
+
+# Private client material — must NOT be pushed to the public repo
+private-notes/

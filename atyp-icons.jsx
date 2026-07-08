@@ -193,6 +193,19 @@ const Icon = {
       <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
       <path d="M10 17l5-5-5-5" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
       <path d="M15 12H3" stroke={c} strokeWidth={sw} strokeLinecap="round" />
+    </svg>,
+
+  Camera: ({ s = 22, c = 'currentColor', sw = 1.8 }) =>
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <path d="M3 9a2 2 0 012-2h1.5l1-1.6A1.5 1.5 0 019 4.7h6a1.5 1.5 0 011.3.7l1 1.6H19a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" stroke={c} strokeWidth={sw} strokeLinejoin="round" />
+      <circle cx="12" cy="13" r="3.2" stroke={c} strokeWidth={sw} />
+    </svg>,
+
+  Image: ({ s = 22, c = 'currentColor', sw = 1.8 }) =>
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="4" width="18" height="16" rx="2.5" stroke={c} strokeWidth={sw} />
+      <circle cx="8.5" cy="9.5" r="1.6" stroke={c} strokeWidth={sw} />
+      <path d="M4 17l4.5-4.5a2 2 0 012.8 0L20 20" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
 
 };
