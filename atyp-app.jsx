@@ -13,9 +13,16 @@ function App() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [profileSectionId, setProfileSectionId] = React.useState('medical');
+  const [vault, setVault] = useState(() => window.VAULT_INITIAL || {});
   const child = CHILDREN.find((c) => c.id === activeChildId) || CHILDREN[0];
 
   const openSwitcher = useCallback(() => setSwitcherOpen(true), []);
+  const addVaultFile = useCallback((cat, file) => {
+    setVault(v => ({ ...v, [cat]: [...(v[cat] || []), file] }));
+  }, []);
+  const removeVaultFile = useCallback((cat, id) => {
+    setVault(v => ({ ...v, [cat]: (v[cat] || []).filter(f => f.id !== id) }));
+  }, []);
 
   const openProfileSection = useCallback((sectionId) => {
     setProfileSectionId(sectionId);
@@ -103,7 +110,7 @@ function App() {
     case 'map':body = <MapScreen go={go} back={back} openStage={openStage} onTab={goTab} openProfile={openProfile} child={child} openSwitcher={openSwitcher} />;break;
     case 'stage':body = <StageDetailScreen stageId={stageId} back={back} openQuestion={openQuestion} doneIds={doneIds} child={child} />;break;
     case 'question':body = <QuestionDetailScreen question={question} back={back} isDone={isQuestionDone(question, doneIds)} markDone={markDone} />;break;
-    case 'profileSection':body = <ProfileSectionScreen sectionId={profileSectionId} back={back} child={child} />;break;
+    case 'profileSection':body = <ProfileSectionScreen sectionId={profileSectionId} back={back} child={child} vault={vault} addVaultFile={addVaultFile} removeVaultFile={removeVaultFile} />;break;
     case 'profile':body = <ProfileScreen onTab={goTab} back={back} child={child} openSection={openProfileSection} />;break;
     case 'events':body = <EventsScreen onTab={goTab} />;break;
     case 'market':body = <MarketplaceScreen onTab={goTab} />;break;
@@ -115,6 +122,38 @@ function App() {
   // Emergency FAB shows on the main app screens (not onboarding / sub-detail).
   const FAB_SCREENS = new Set(['home', 'events', 'map', 'market', 'assistant', 'userProfile', 'profile']);
   const showFab = FAB_SCREENS.has(screen);
+
+  // Fullscreen mobile mode (mobile.html) — no demo caption, no phone frame,
+  // no fake status bar / island / home indicator: the real device provides them.
+  if (window.ATYP_MOBILE) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: T.bg, overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>{body}</div>
+
+        {showFab && !emergencyOpen && (
+          <button onClick={() => setEmergencyOpen(true)} aria-label="Emergency" style={{
+            position: 'absolute', right: 18, bottom: 96, zIndex: 80,
+            width: 60, height: 60, borderRadius: 999, border: '3px solid #fff',
+            background: 'linear-gradient(140deg, #E63946, #C1121F)',
+            boxShadow: '0 10px 24px rgba(230,57,70,0.46)', cursor: 'pointer',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+            fontFamily: 'inherit',
+          }}>
+            <EmergencyGlyph s={22} c="#fff"/>
+            <span style={{ fontSize: 8.5, fontWeight: 800, color: '#fff', letterSpacing: '0.06em' }}>SOS</span>
+          </button>
+        )}
+
+        {emergencyOpen && <EmergencySheet child={child} onClose={() => setEmergencyOpen(false)} />}
+
+        {switcherOpen &&
+        <ChildSwitcher
+          activeId={activeChildId}
+          onPick={pickChild}
+          onClose={() => setSwitcherOpen(false)} />
+        }
+      </div>);
+  }
 
   return (
     <div className="atyp-stage" data-comment-anchor="0fc1c1e110-div-112-5">

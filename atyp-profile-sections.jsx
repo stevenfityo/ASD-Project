@@ -57,71 +57,107 @@ function FileRow({ name, meta, ext = 'PDF', tint = T.green, bg = T.greenSoft, on
   );
 }
 
-// Files group reused by every Documents Vault category — supports delete + a
-// visual upload flow: pick a source (camera / photos / files) → preview → attach.
-// `tint`/`bg` colour the file chips. `initial` is the starting list of { name, meta, ext }.
-function FilesGroup({ initial = [], tint = T.green, bg = T.greenSoft }) {
-  const [files, setFiles] = React.useState(initial.map((f, i) => ({ ...f, id: 'f' + i })));
-  // step: 'idle' | 'source' | 'preview'
-  const [step, setStep] = React.useState('idle');
-  const [pending, setPending] = React.useState(null);
-  const remove = (id) => setFiles(s => s.filter(f => f.id !== id));
+// ── Documents Vault data model ────────────────────────────────────────
+// Vault state itself lives in App (atyp-app.jsx) so files survive
+// navigation and are shared between category screens and the vault list.
 
-  const SOURCES = [
-    { key: 'camera', label: 'Take photo',    sub: 'Scan a document with the camera', I: Icon.Camera },
-    { key: 'photos', label: 'Photo Library', sub: 'Pick an existing image',          I: Icon.Image  },
-    { key: 'files',  label: 'Files',         sub: 'Browse PDFs and documents',       I: Icon.Folder },
-  ];
+const VAULT_CATS = [
+  { key: 'medical',   label: 'Medical',           tint: '#C25450', bg: '#F5E1E0' },
+  { key: 'therapies', label: 'Therapies',         tint: T.blue,    bg: '#E4EEF6' },
+  { key: 'education', label: 'Education & IEP',   tint: T.green,   bg: T.greenSoft },
+  { key: 'legal',     label: 'Legal & Financial', tint: '#9C5E3A', bg: '#F2E4D8' },
+];
+
+const VAULT_INITIAL = {
+  medical: [
+    { id: 'm1', name: 'Diagnostic Report.pdf',    meta: 'Autism dx · Dr. Chen · Jan 2024 · 1.2 MB', ext: 'PDF' },
+    { id: 'm2', name: 'Primary Care Summary.pdf', meta: 'Annual physical · Jan 2026 · 480 KB',      ext: 'PDF' },
+  ],
+  therapies: [
+    { id: 'th1', name: 'Speech Assessment.pdf', meta: 'Annual evaluation · Tom R., SLP · Nov 2025 · 860 KB', ext: 'PDF' },
+    { id: 'th2', name: 'OT Evaluation.pdf',     meta: 'Sensory profile · Amy K., OTR · Oct 2025 · 1.0 MB',  ext: 'PDF' },
+  ],
+  education: [
+    { id: 'e1', name: 'IEP 2026.pdf',         meta: 'Renewed Mar 2026 · 24 pages · 1.8 MB',    ext: 'PDF' },
+    { id: 'e2', name: 'Psych Evaluation.pdf', meta: 'School psychologist · Feb 2026 · 1.1 MB', ext: 'PDF' },
+  ],
+  legal: [
+    { id: 'l1', name: 'ABLE Account Statement.pdf', meta: 'Tax-advantaged savings · 2025 · 540 KB',    ext: 'PDF' },
+    { id: 'l2', name: 'SSI Benefits Letter.pdf',    meta: 'Award letter · Review Aug 2026 · 280 KB',   ext: 'PDF' },
+    { id: 'l3', name: 'Insurance Cards.pdf',        meta: 'Medicaid + secondary · Jan 2026 · 320 KB',  ext: 'PDF' },
+  ],
+};
+
+const UPLOAD_SOURCES = [
+  { key: 'camera', label: 'Take photo',    sub: 'Scan a document with the camera', I: Icon.Camera },
+  { key: 'photos', label: 'Photo Library', sub: 'Pick an existing image',          I: Icon.Image  },
+  { key: 'files',  label: 'Files',         sub: 'Browse PDFs and documents',       I: Icon.Folder },
+];
+
+// Files list for one Documents Vault category — presentational only;
+// uploads go through the shared UploadSheet.
+function FilesGroup({ files, tint = T.green, bg = T.greenSoft, onDelete, onUpload }) {
+  return (
+    <InfoGroup label="Files">
+      {files.map(f => <FileRow key={f.id} name={f.name} meta={f.meta} ext={f.ext} tint={tint} bg={bg} onDelete={() => onDelete(f.id)}/>)}
+      <AddDashedBtn label="Upload document" onClick={onUpload}/>
+    </InfoGroup>
+  );
+}
+
+// Unified upload drawer: pick a source → confirm file + destination folder.
+// `presetCat` pre-selects the folder (when opened from a category screen);
+// from the Documents Vault it stays null until the user picks one.
+function UploadSheet({ presetCat = null, vault, onAttach, onClose }) {
+  const [step, setStep] = React.useState('source'); // 'source' | 'confirm'
+  const [pending, setPending] = React.useState(null);
+  const [cat, setCat] = React.useState(presetCat);
 
   const pick = (key) => {
-    const n = files.length + 1;
+    const n = Object.values(vault).reduce((a, l) => a + l.length, 0) + 1;
     const p = key === 'camera' ? { name: `Scan ${n}.jpg`,     ext: 'JPG', size: '0.8 MB', from: 'Camera' }
             : key === 'photos' ? { name: `Photo ${n}.jpg`,    ext: 'JPG', size: '1.1 MB', from: 'Photo Library' }
             :                     { name: `Document ${n}.pdf`, ext: 'PDF', size: '0.4 MB', from: 'Files' };
     setPending(p);
-    setStep('preview');
+    setStep('confirm');
   };
 
   const attach = () => {
-    setFiles(s => [...s, { id: 'f' + Date.now(), name: pending.name, ext: pending.ext, meta: `${pending.from} · just now · ${pending.size}` }]);
-    reset();
+    if (!cat || !pending) return;
+    onAttach(cat, { id: 'f' + Date.now(), name: pending.name, ext: pending.ext, meta: `${pending.from} · just now · ${pending.size}` });
+    onClose();
   };
-  const reset = () => { setPending(null); setStep('idle'); };
+
+  const catMeta = VAULT_CATS.find(c => c.key === cat);
+  const tint = catMeta ? catMeta.tint : T.green;
+  const bg = catMeta ? catMeta.bg : T.greenSoft;
 
   return (
-    <InfoGroup label="Files">
-      {files.map(f => <FileRow key={f.id} name={f.name} meta={f.meta} ext={f.ext} tint={tint} bg={bg} onDelete={() => remove(f.id)}/>)}
-
-      {step === 'idle' && <AddDashedBtn label="Upload document" onClick={() => setStep('source')}/>}
-
+    <Sheet title="Upload document" onClose={onClose}>
       {step === 'source' && (
-        <div style={{ marginTop: 4, background: '#fff', borderRadius: 14, padding: 12, boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: T.ink, marginBottom: 10, paddingLeft: 2 }}>Add a document</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {SOURCES.map(s => (
-              <button key={s.key} onClick={() => pick(s.key)} style={{
-                width: '100%', background: T.bg, border: `1px solid ${T.line}`, borderRadius: 12,
-                padding: '10px 12px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                display: 'flex', alignItems: 'center', gap: 12,
-              }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <s.I s={19} c={tint}/>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{s.label}</div>
-                  <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{s.sub}</div>
-                </div>
-                <Icon.ChevronRight s={15} c={T.muted}/>
-              </button>
-            ))}
-          </div>
-          <button onClick={reset} style={{ marginTop: 10, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.muted, padding: 4 }}>Cancel</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {UPLOAD_SOURCES.map(s => (
+            <button key={s.key} onClick={() => pick(s.key)} style={{
+              width: '100%', background: T.bg, border: `1px solid ${T.line}`, borderRadius: 12,
+              padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <s.I s={19} c={tint}/>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{s.label}</div>
+                <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{s.sub}</div>
+              </div>
+              <Icon.ChevronRight s={15} c={T.muted}/>
+            </button>
+          ))}
+          <button onClick={onClose} style={{ marginTop: 6, height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
         </div>
       )}
 
-      {step === 'preview' && pending && (
-        <div style={{ marginTop: 4, background: '#fff', borderRadius: 14, padding: 12, boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: T.ink, marginBottom: 10, paddingLeft: 2 }}>Ready to upload</div>
+      {step === 'confirm' && pending && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: T.bg, borderRadius: 12, padding: '12px 14px', border: `1px solid ${T.line}` }}>
             <div style={{ width: 44, height: 44, borderRadius: 10, background: bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Icon.Paperclip s={20} c={tint}/>
@@ -132,76 +168,79 @@ function FilesGroup({ initial = [], tint = T.green, bg = T.greenSoft }) {
             </div>
             <span style={{ fontSize: 10, fontWeight: 700, color: tint, background: bg, padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>{pending.ext}</span>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button onClick={() => setStep('source')} style={{ flex: 1, height: 42, borderRadius: 12, border: `1px solid ${T.line}`, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, color: T.ink2 }}>Choose again</button>
-            <button onClick={attach} style={{ flex: 1, height: 42, borderRadius: 12, border: 'none', background: T.green, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, color: '#fff' }}>Attach</button>
+
+          <div>
+            <div style={sheetLabelStyle}>Save to folder</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {VAULT_CATS.map(c => {
+                const active = c.key === cat;
+                return (
+                  <button key={c.key} onClick={() => setCat(c.key)} style={{
+                    width: '100%', background: '#fff', borderRadius: 12,
+                    boxShadow: active ? `inset 0 0 0 2px ${T.green}` : `inset 0 0 0 1px ${T.line}`,
+                    border: 'none', padding: '10px 12px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                  }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: c.bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon.Folder s={18} c={c.tint}/>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: T.ink }}>{c.label}</div>
+                    {active ? (
+                      <div style={{ width: 24, height: 24, borderRadius: 999, background: T.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Icon.Check s={14} c="#fff" sw={3}/>
+                      </div>
+                    ) : (
+                      <div style={{ width: 24, height: 24, borderRadius: 999, boxShadow: `inset 0 0 0 1.5px ${T.line}`, flexShrink: 0 }}/>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+            <button onClick={attach} style={{
+              height: 52, borderRadius: 14, border: 'none', background: T.green,
+              fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer',
+              opacity: cat ? 1 : 0.5
+            }}>Attach</button>
+            <button onClick={() => { setPending(null); setStep('source'); }} style={{
+              height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`,
+              background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700,
+              color: T.ink2, cursor: 'pointer'
+            }}>Choose again</button>
           </div>
         </div>
       )}
-    </InfoGroup>
+    </Sheet>
   );
 }
 
-// ── Medical ────────────────────────────────────────────────────────────
-
-function ProfileMedicalScreen({ back }) {
+function SheetField({ label, value, onChange, placeholder, type = 'text', autoFocus = false }) {
   return (
-    <Screen bg={T.bg}>
-      <ScreenHeader title="Medical" onBack={back} sticky={false}/>
-      <div style={{ padding: '0 18px 32px' }}>
-        <FilesGroup tint="#C25450" bg="#F5E1E0" initial={[
-          { name: 'Diagnostic Report.pdf',   meta: 'Autism dx · Dr. Chen · Jan 2024 · 1.2 MB', ext: 'PDF' },
-          { name: 'Primary Care Summary.pdf', meta: 'Annual physical · Jan 2026 · 480 KB',      ext: 'PDF' },
-        ]}/>
-      </div>
-    </Screen>
+    <div>
+      <div style={sheetLabelStyle}>{label}</div>
+      <input autoFocus={autoFocus} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type}
+        style={sheetInputStyle}
+        onFocus={e => e.currentTarget.style.borderColor = T.green}
+        onBlur={e => e.currentTarget.style.borderColor = T.line}/>
+    </div>
   );
 }
 
-// ── Therapies ─────────────────────────────────────────────────────────
+// ── Vault category screens (Medical / Therapies / Education / Legal) ──
 
-function ProfileTherapiesScreen({ back }) {
+function ProfileVaultCategoryScreen({ catKey, back, vault, addVaultFile, removeVaultFile }) {
+  const cat = VAULT_CATS.find(c => c.key === catKey);
+  const [uploadOpen, setUploadOpen] = React.useState(false);
   return (
     <Screen bg={T.bg}>
-      <ScreenHeader title="Therapies" onBack={back} sticky={false}/>
+      <ScreenHeader title={cat.label} onBack={back} sticky={false}/>
       <div style={{ padding: '0 18px 32px' }}>
-        <FilesGroup tint={T.blue} bg="#E4EEF6" initial={[
-          { name: 'Speech Assessment.pdf', meta: 'Annual evaluation · Tom R., SLP · Nov 2025 · 860 KB', ext: 'PDF' },
-          { name: 'OT Evaluation.pdf',     meta: 'Sensory profile · Amy K., OTR · Oct 2025 · 1.0 MB',  ext: 'PDF' },
-        ]}/>
+        <FilesGroup files={vault[catKey] || []} tint={cat.tint} bg={cat.bg}
+          onDelete={id => removeVaultFile(catKey, id)} onUpload={() => setUploadOpen(true)}/>
       </div>
-    </Screen>
-  );
-}
-
-// ── Education & IEP ───────────────────────────────────────────────────
-
-function ProfileEducationScreen({ back }) {
-  return (
-    <Screen bg={T.bg}>
-      <ScreenHeader title="Education & IEP" onBack={back} sticky={false}/>
-      <div style={{ padding: '0 18px 32px' }}>
-        <FilesGroup initial={[
-          { name: 'IEP 2026.pdf',         meta: 'Renewed Mar 2026 · 24 pages · 1.8 MB',  ext: 'PDF' },
-          { name: 'Psych Evaluation.pdf', meta: 'School psychologist · Feb 2026 · 1.1 MB', ext: 'PDF' },
-        ]}/>
-      </div>
-    </Screen>
-  );
-}
-
-// ── Legal & Financial ─────────────────────────────────────────────────
-
-function ProfileLegalScreen({ back }) {
-  return (
-    <Screen bg={T.bg}>
-      <ScreenHeader title="Legal & Financial" onBack={back} sticky={false}/>
-      <div style={{ padding: '0 18px 32px' }}>
-        <FilesGroup tint="#9C5E3A" bg="#F2E4D8" initial={[
-          { name: 'ABLE Account Statement.pdf', meta: 'Tax-advantaged savings · 2025 · 540 KB', ext: 'PDF' },
-          { name: 'SSI Benefits Letter.pdf',    meta: 'Award letter · Review Aug 2026 · 280 KB', ext: 'PDF' },
-        ]}/>
-      </div>
+      {uploadOpen && <UploadSheet presetCat={catKey} vault={vault} onAttach={addVaultFile} onClose={() => setUploadOpen(false)}/>}
     </Screen>
   );
 }
@@ -318,74 +357,83 @@ function ProfileRoutineScreen({ back }) {
           })}
         </div>
 
-        {adding ? (
-          <div style={{ background: '#fff', borderRadius: 16, padding: '14px', boxShadow: `inset 0 0 0 1.5px ${T.green}` }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input value={newItem.title} onChange={e => setNewItem(s => ({ ...s, title: e.target.value }))} placeholder="Task name…" style={{ height: 42, borderRadius: 10, border: `1.5px solid ${T.line}`, padding: '0 12px', fontFamily: 'inherit', fontSize: 14, color: T.ink, outline: 'none', width: '100%', boxSizing: 'border-box' }}/>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input value={newItem.time} onChange={e => setNewItem(s => ({ ...s, time: e.target.value }))} placeholder="7:30 AM" style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${T.line}`, padding: '0 10px', fontFamily: 'inherit', fontSize: 13, color: T.ink, outline: 'none' }}/>
-                <select value={newItem.kind} onChange={e => setNewItem(s => ({ ...s, kind: e.target.value }))} style={{ height: 38, borderRadius: 10, border: `1.5px solid ${T.line}`, padding: '0 8px', fontFamily: 'inherit', fontSize: 13, color: T.ink, background: '#fff', outline: 'none' }}>
+        <AddDashedBtn label="Add daily task" onClick={() => setAdding(true)}/>
+      </div>
+      {adding && (
+        <Sheet title="Add daily task" onClose={() => setAdding(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <div style={sheetLabelStyle}>Task name *</div>
+              <input autoFocus value={newItem.title} onChange={e => setNewItem(s => ({ ...s, title: e.target.value }))} placeholder="Task name..."
+                style={sheetInputStyle}
+                onFocus={e => e.currentTarget.style.borderColor = T.green}
+                onBlur={e => e.currentTarget.style.borderColor = T.line}/>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={sheetLabelStyle}>Time</div>
+                <input value={newItem.time} onChange={e => setNewItem(s => ({ ...s, time: e.target.value }))} placeholder="7:30 AM"
+                  style={sheetInputStyle}
+                  onFocus={e => e.currentTarget.style.borderColor = T.green}
+                  onBlur={e => e.currentTarget.style.borderColor = T.line}/>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={sheetLabelStyle}>Category</div>
+                <select value={newItem.kind} onChange={e => setNewItem(s => ({ ...s, kind: e.target.value }))}
+                  style={{ ...sheetInputStyle, background: T.bg }}>
                   {Object.entries(kindMeta).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <Btn variant="primary" style={{ height: 40, fontSize: 14 }} onClick={addItem}>Add task</Btn>
-                <Btn variant="ghost" full={false} style={{ height: 40, fontSize: 14, padding: '0 16px' }} onClick={() => setAdding(false)}>Cancel</Btn>
-              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              <button onClick={addItem} style={{
+                height: 52, borderRadius: 14, border: 'none', background: T.green,
+                fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer',
+                opacity: newItem.title.trim() ? 1 : 0.5
+              }}>Add task</button>
+              <button onClick={() => setAdding(false)} style={{
+                height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`,
+                background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700,
+                color: T.ink2, cursor: 'pointer'
+              }}>Cancel</button>
             </div>
           </div>
-        ) : (
-          <AddDashedBtn label="Add daily task" onClick={() => setAdding(true)}/>
-        )}
-      </div>
+        </Sheet>
+      )}
     </Screen>
   );
 }
 
 // ── Documents Vault ───────────────────────────────────────────────────
 
-function ProfileDocumentsScreen({ back }) {
-  const docs = [
-    { id: 'doc1', title: 'IEP 2026',           sub: 'Renewed Mar 2026 · 24 pages',           kind: 'IEP',       date: 'Mar 2026' },
-    { id: 'doc2', title: 'Diagnostic Report',  sub: 'Autism dx · Dr. Chen · Jan 2024',       kind: 'Medical',   date: 'Jan 2024' },
-    { id: 'doc3', title: 'Speech Assessment',  sub: 'Annual evaluation · Tom R., SLP',       kind: 'Therapy',   date: 'Nov 2025' },
-    { id: 'doc4', title: 'OT Evaluation',      sub: 'Sensory profile · Amy K., OTR',         kind: 'Therapy',   date: 'Oct 2025' },
-    { id: 'doc5', title: 'Medical Records',    sub: 'Primary care summary · Various',        kind: 'Medical',   date: 'Jan 2026' },
-    { id: 'doc6', title: 'Insurance Cards',    sub: 'Medicaid + secondary · 2026',           kind: 'Insurance', date: 'Jan 2026' },
-  ];
-
-  const kindColor = {
-    IEP:       [T.green,   T.greenSoft],
-    Medical:   ['#C25450', '#F5E1E0'],
-    Therapy:   [T.blue,    '#E4EEF6'],
-    Insurance: ['#9C5E3A', '#F2E4D8'],
-  };
+function ProfileDocumentsScreen({ back, vault, addVaultFile }) {
+  const [uploadOpen, setUploadOpen] = React.useState(false);
+  const docs = VAULT_CATS.flatMap(c => (vault[c.key] || []).map(f => ({ ...f, cat: c })));
 
   return (
     <Screen bg={T.bg}>
       <ScreenHeader title="Documents Vault" onBack={back} sticky={false}
-        right={<button style={{ height: 32, padding: '0 12px', borderRadius: 999, background: T.greenSoft, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: T.green, display: 'flex', alignItems: 'center', gap: 5 }}><Icon.Plus s={13} c={T.green}/> Upload</button>}
+        right={<button onClick={() => setUploadOpen(true)} style={{ height: 32, padding: '0 12px', borderRadius: 999, background: T.greenSoft, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: T.green, display: 'flex', alignItems: 'center', gap: 5 }}><Icon.Plus s={13} c={T.green}/> Upload</button>}
       />
       <div style={{ padding: '0 18px 32px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {docs.map(d => {
-          const [tint, bg] = kindColor[d.kind] || [T.green, T.greenSoft];
-          return (
-            <div key={d.id} style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', boxShadow: `inset 0 0 0 1px ${T.line}`, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon.Folder s={20} c={tint}/>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em' }}>{d.title}</div>
-                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{d.sub}</div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: tint, background: bg, padding: '2px 7px', borderRadius: 999 }}>{d.kind}</span>
-                <span style={{ fontSize: 11, color: T.muted, fontWeight: 600 }}>{d.date}</span>
-              </div>
+        {docs.map(d => (
+          <div key={`${d.cat.key}-${d.id}`} style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', boxShadow: `inset 0 0 0 1px ${T.line}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 11, background: d.cat.bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon.Folder s={20} c={d.cat.tint}/>
             </div>
-          );
-        })}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.meta}</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: d.cat.tint, background: d.cat.bg, padding: '2px 7px', borderRadius: 999 }}>{d.cat.label}</span>
+              <span style={{ fontSize: 11, color: T.muted, fontWeight: 600 }}>{d.ext}</span>
+            </div>
+          </div>
+        ))}
+        <AddDashedBtn label="Upload document" onClick={() => setUploadOpen(true)}/>
       </div>
+      {uploadOpen && <UploadSheet presetCat={null} vault={vault} onAttach={addVaultFile} onClose={() => setUploadOpen(false)}/>}
     </Screen>
   );
 }
@@ -409,14 +457,6 @@ function ProfileTrustedScreen({ back }) {
   };
 
   const remove = (id) => { setPeople(p => p.filter(x => x.id !== id)); setDeletingId(null); };
-
-  const Field = ({ label, value, onChange, placeholder, type = 'text' }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type}
-        style={{ height: 42, borderRadius: 10, border: `1.5px solid ${T.line}`, padding: '0 12px', fontFamily: 'inherit', fontSize: 14, color: T.ink, outline: 'none', width: '100%', boxSizing: 'border-box', background: '#fff' }}/>
-    </div>
-  );
 
   return (
     <Screen bg={T.bg}>
@@ -485,48 +525,48 @@ function ProfileTrustedScreen({ back }) {
           </div>
         ))}
 
-        {/* Add form */}
-        {adding ? (
-          <div style={{ background: '#fff', borderRadius: 16, padding: '16px', boxShadow: `inset 0 0 0 1.5px ${T.green}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginBottom: 2 }}>New trusted person</div>
-            <Field label="Full name" value={draft.name} onChange={v => setDraft(d => ({ ...d, name: v }))} placeholder="Jane Smith"/>
-            <Field label="Relationship" value={draft.relation} onChange={v => setDraft(d => ({ ...d, relation: v }))} placeholder="Aunt, sibling, family friend…"/>
-            <Field label="Phone" value={draft.phone} onChange={v => setDraft(d => ({ ...d, phone: v }))} placeholder="+1 (555) 000-0000" type="tel"/>
-            <Field label="Email" value={draft.email} onChange={v => setDraft(d => ({ ...d, email: v }))} placeholder="name@email.com" type="email"/>
-            <Field label="Note (optional)" value={draft.note} onChange={v => setDraft(d => ({ ...d, note: v }))} placeholder="Power of attorney, specific instructions…"/>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <button onClick={add} style={{ flex: 1, height: 42, borderRadius: 11, border: 'none', background: T.green, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Add person</button>
-              <button onClick={() => { setAdding(false); setDraft(emptyPerson); }} style={{ flex: 1, height: 42, borderRadius: 11, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
+        <AddDashedBtn label="Add trusted person" onClick={() => setAdding(true)}/>
+      </div>
+      {adding && (
+        <Sheet title="New trusted person" onClose={() => { setAdding(false); setDraft(emptyPerson); }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <SheetField autoFocus label="Full name" value={draft.name} onChange={v => setDraft(d => ({ ...d, name: v }))} placeholder="Jane Smith"/>
+            <SheetField label="Relationship" value={draft.relation} onChange={v => setDraft(d => ({ ...d, relation: v }))} placeholder="Aunt, sibling, family friend..."/>
+            <SheetField label="Phone" value={draft.phone} onChange={v => setDraft(d => ({ ...d, phone: v }))} placeholder="+1 (555) 000-0000" type="tel"/>
+            <SheetField label="Email" value={draft.email} onChange={v => setDraft(d => ({ ...d, email: v }))} placeholder="name@email.com" type="email"/>
+            <SheetField label="Note (optional)" value={draft.note} onChange={v => setDraft(d => ({ ...d, note: v }))} placeholder="Power of attorney, specific instructions..."/>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              <button onClick={add} style={{
+                height: 52, borderRadius: 14, border: 'none', background: T.green,
+                fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer',
+                opacity: draft.name.trim() ? 1 : 0.5
+              }}>Add person</button>
+              <button onClick={() => { setAdding(false); setDraft(emptyPerson); }} style={{
+                height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`,
+                background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700,
+                color: T.ink2, cursor: 'pointer'
+              }}>Cancel</button>
             </div>
           </div>
-        ) : (
-          <button onClick={() => setAdding(true)} style={{
-            width: '100%', height: 50, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit',
-            fontSize: 14, fontWeight: 700, color: T.green,
-            background: T.greenSoft, border: `1.5px dashed ${T.green}55`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}>
-            <Icon.Plus s={16} c={T.green}/> Add trusted person
-          </button>
-        )}
-      </div>
+        </Sheet>
+      )}
     </Screen>
   );
 }
 
 // ── Router ────────────────────────────────────────────────────────────
 
-function ProfileSectionScreen({ sectionId, back, child }) {
+function ProfileSectionScreen({ sectionId, back, child, vault, addVaultFile, removeVaultFile }) {
   switch (sectionId) {
-    case 'medical':   return <ProfileMedicalScreen back={back} child={child}/>;
-    case 'therapies': return <ProfileTherapiesScreen back={back} child={child}/>;
-    case 'education': return <ProfileEducationScreen back={back} child={child}/>;
-    case 'legal':     return <ProfileLegalScreen back={back} child={child}/>;
+    case 'medical':
+    case 'therapies':
+    case 'education':
+    case 'legal':     return <ProfileVaultCategoryScreen catKey={sectionId} back={back} vault={vault} addVaultFile={addVaultFile} removeVaultFile={removeVaultFile}/>;
     case 'routine':   return <ProfileRoutineScreen back={back} child={child}/>;
-    case 'documents': return <ProfileDocumentsScreen back={back} child={child}/>;
+    case 'documents': return <ProfileDocumentsScreen back={back} child={child} vault={vault} addVaultFile={addVaultFile} removeVaultFile={removeVaultFile}/>;
     case 'trusted':   return <ProfileTrustedScreen back={back} child={child}/>;
     default:          return null;
   }
 }
 
-Object.assign(window, { ProfileSectionScreen });
+Object.assign(window, { ProfileSectionScreen, VAULT_CATS, VAULT_INITIAL });

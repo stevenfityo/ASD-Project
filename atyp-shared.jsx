@@ -207,6 +207,28 @@ function ScreenHeader({ title, subtitle, onBack, right = null, sticky = true }) 
 
 }
 
+// — Bottom sheet (drawer) — shared chrome for every "add" action ————————
+// Render as a direct child of <Screen> (after the content div) so the
+// absolute positioning covers the whole phone frame.
+
+const sheetInputStyle = { width: '100%', boxSizing: 'border-box', height: 44, borderRadius: 12, border: `1.5px solid ${T.line}`, padding: '0 14px', fontFamily: 'inherit', fontSize: 14.5, color: T.ink, outline: 'none', background: T.bg };
+const sheetLabelStyle = { fontSize: 11.5, fontWeight: 700, color: T.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' };
+
+function Sheet({ title, onClose, children, zIndex = 50 }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+      <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 40px', maxHeight: '85%', overflowY: 'auto', animation: 'atypSheetUp .28s ease' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
+        </div>
+        {title && <div style={{ fontSize: 19, fontWeight: 700, color: T.ink, letterSpacing: '-0.02em', marginTop: 8, marginBottom: 20 }}>{title}</div>}
+        {children}
+      </div>
+    </div>);
+
+}
+
 // Bottom tab bar — four icons. GPS is now embedded in the Assistant tab.
 // Profile is reached by tapping the child avatar in screen headers.
 function TabBar({ active, onTab }) {
@@ -245,4 +267,4 @@ function TabBar({ active, onTab }) {
 
 }
 
-Object.assign(window, { Btn, Field, Toggle, Chip, Avatar, StepDots, ProgressRing, Screen, ScreenHeader, TabBar });
+Object.assign(window, { Btn, Field, Toggle, Chip, Avatar, StepDots, ProgressRing, Screen, ScreenHeader, TabBar, Sheet, sheetInputStyle, sheetLabelStyle });

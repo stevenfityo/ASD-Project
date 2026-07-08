@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "ux-audit": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ux-audit/SKILL.md",
+      "computedHash": "123166c36d0cadd9d28d77498d2313a27b4603e250056be538867293838f8560"
+    }
+  }
+}
