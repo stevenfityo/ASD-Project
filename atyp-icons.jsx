@@ -206,6 +206,12 @@ const Icon = {
       <rect x="3" y="4" width="18" height="16" rx="2.5" stroke={c} strokeWidth={sw} />
       <circle cx="8.5" cy="9.5" r="1.6" stroke={c} strokeWidth={sw} />
       <path d="M4 17l4.5-4.5a2 2 0 012.8 0L20 20" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>,
+
+  ExternalLink: ({ s = 22, c = 'currentColor', sw = 1.8 }) =>
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 3h6v6M10 14L21 3" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
 
 };

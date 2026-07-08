@@ -14,6 +14,7 @@ function ProfileScreen({ onTab, back, child, openSection }) {
     {
       title: 'Documents Vault',
       items: [
+        { key: 'documents', I: Icon.Folder,    label: 'All documents',       sub: 'Browse and upload files'        },
         { key: 'medical',   I: Icon.Hospital,  label: 'Medical',           sub: 'Doctors, medications, allergies' },
         { key: 'therapies', I: Icon.Brain,     label: 'Therapies',         sub: 'ABA, speech, occupational'       },
         { key: 'education', I: Icon.School,    label: 'Education & IEP',   sub: 'School, accommodations, goals'   },
@@ -260,13 +261,7 @@ function EventsScreen({ onTab }) {
 
       {/* Add Event sheet */}
       {showAdd && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-          <div onClick={() => setShowAdd(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
-          <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 40px', maxHeight: '85%', overflowY: 'auto', animation: 'atypSheetUp .28s ease' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
-              <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
-            </div>
-            <div style={{ fontSize: 19, fontWeight: 700, color: T.ink, letterSpacing: '-0.02em', marginTop: 8, marginBottom: 20 }}>Add event</div>
+        <Sheet title="Add event" onClose={() => setShowAdd(false)}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <div style={labelStyle}>Title *</div>
@@ -327,8 +322,7 @@ function EventsScreen({ onTab }) {
                 }}>Cancel</button>
               </div>
             </div>
-          </div>
-        </div>
+        </Sheet>
       )}
     </Screen>);
 
@@ -1552,8 +1546,13 @@ function UserProfileScreen({ onTab }) {
           <Icon.LogOut s={18} c={T.ink2} /> Sign out
         </button>
 
-        <button style={{ background: 'none', border: 'none', fontFamily: 'inherit', fontSize: 13, color: T.red, cursor: 'pointer', textDecoration: 'underline', textAlign: 'center', padding: 0 }}>
-          Delete account
+        <button onClick={() => window.open('https://stevenfityo.github.io/ASD-Project/mobile.html', '_blank')} style={{
+          width: '100%', height: 48, borderRadius: 14, border: 'none',
+          background: `linear-gradient(135deg, ${T.green}, ${T.green}dd)`, fontFamily: 'inherit', fontSize: 15, fontWeight: 700,
+          color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          boxShadow: `0 4px 14px ${T.green}33`
+        }}>
+          <Icon.ExternalLink s={18} c="#fff" /> Open Mobile Version
         </button>
 
       </div>
