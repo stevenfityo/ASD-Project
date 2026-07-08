@@ -214,7 +214,7 @@ function ScreenHeader({ title, subtitle, onBack, right = null, sticky = true }) 
 const sheetInputStyle = { width: '100%', boxSizing: 'border-box', height: 44, borderRadius: 12, border: `1.5px solid ${T.line}`, padding: '0 14px', fontFamily: 'inherit', fontSize: 14.5, color: T.ink, outline: 'none', background: T.bg };
 const sheetLabelStyle = { fontSize: 11.5, fontWeight: 700, color: T.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' };
 
-function Sheet({ title, onClose, children, zIndex = 50 }) {
+function Sheet({ title, onClose, children, zIndex = 200 }) {
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>

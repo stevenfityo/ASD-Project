@@ -109,16 +109,29 @@ function FilesGroup({ files, tint = T.green, bg = T.greenSoft, onDelete, onUploa
 // `presetCat` pre-selects the folder (when opened from a category screen);
 // from the Documents Vault it stays null until the user picks one.
 function UploadSheet({ presetCat = null, vault, onAttach, onClose }) {
-  const [step, setStep] = React.useState('source'); // 'source' | 'confirm'
+  const [step, setStep] = React.useState('source'); // 'source' | 'camera_view' | 'photos_view' | 'files_view' | 'confirm'
   const [pending, setPending] = React.useState(null);
   const [cat, setCat] = React.useState(presetCat);
+  const [prevStep, setPrevStep] = React.useState('source');
 
-  const pick = (key) => {
+  const selectSource = (key) => {
+    setPrevStep(key + '_view');
+    setStep(key + '_view');
+  };
+
+  const capturePhoto = () => {
     const n = Object.values(vault).reduce((a, l) => a + l.length, 0) + 1;
-    const p = key === 'camera' ? { name: `Scan ${n}.jpg`,     ext: 'JPG', size: '0.8 MB', from: 'Camera' }
-            : key === 'photos' ? { name: `Photo ${n}.jpg`,    ext: 'JPG', size: '1.1 MB', from: 'Photo Library' }
-            :                     { name: `Document ${n}.pdf`, ext: 'PDF', size: '0.4 MB', from: 'Files' };
-    setPending(p);
+    setPending({ name: `Scan ${n}.jpg`, ext: 'JPG', size: '1.2 MB', from: 'Camera' });
+    setStep('confirm');
+  };
+
+  const selectPhoto = (item) => {
+    setPending({ name: item.name, ext: 'JPG', size: item.size, from: 'Photo Library' });
+    setStep('confirm');
+  };
+
+  const selectFile = (item) => {
+    setPending({ name: item.name, ext: item.ext, size: item.size, from: 'Files' });
     setStep('confirm');
   };
 
@@ -132,12 +145,29 @@ function UploadSheet({ presetCat = null, vault, onAttach, onClose }) {
   const tint = catMeta ? catMeta.tint : T.green;
   const bg = catMeta ? catMeta.bg : T.greenSoft;
 
+  const mockPhotos = [
+    { label: 'Pediatric Report', name: 'Pediatric_Report.jpg', size: '1.4 MB' },
+    { label: 'IEP Review 2026', name: 'IEP_Review_2026.jpg', size: '1.8 MB' },
+    { label: 'Therapy Receipt', name: 'Therapy_Receipt.jpg', size: '0.9 MB' },
+    { label: 'Diagnostic Summary', name: 'Diagnosis_Diagnostic.jpg', size: '1.6 MB' },
+    { label: 'Sensory Profile', name: 'Sensory_Profile.jpg', size: '1.1 MB' },
+    { label: 'Speech SLP Notes', name: 'Speech_SLP_Notes.jpg', size: '1.3 MB' },
+  ];
+
+  const mockFiles = [
+    { name: 'Evaluation_Report_2026.pdf', size: '2.4 MB', date: '3 days ago', ext: 'PDF', color: '#C25450' },
+    { name: 'Therapy_Goals_Q2.pdf', size: '1.2 MB', date: '1 week ago', ext: 'PDF', color: '#C25450' },
+    { name: 'School_Accommodations.docx', size: '420 KB', date: 'May 5, 2026', ext: 'DOCX', color: T.blue },
+    { name: 'Medicaid_Renewal_Form.pdf', size: '940 KB', date: 'May 2, 2026', ext: 'PDF', color: '#C25450' },
+    { name: 'Speech_Session_Notes.pdf', size: '1.8 MB', date: 'Apr 28, 2026', ext: 'PDF', color: '#C25450' },
+  ];
+
   return (
-    <Sheet title="Upload document" onClose={onClose}>
+    <Sheet title={step === 'camera_view' ? '' : "Upload document"} onClose={onClose}>
       {step === 'source' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {UPLOAD_SOURCES.map(s => (
-            <button key={s.key} onClick={() => pick(s.key)} style={{
+            <button key={s.key} onClick={() => selectSource(s.key)} style={{
               width: '100%', background: T.bg, border: `1px solid ${T.line}`, borderRadius: 12,
               padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
               display: 'flex', alignItems: 'center', gap: 12,
@@ -153,6 +183,105 @@ function UploadSheet({ presetCat = null, vault, onAttach, onClose }) {
             </button>
           ))}
           <button onClick={onClose} style={{ marginTop: 6, height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
+        </div>
+      )}
+
+      {step === 'camera_view' && (
+        <div style={{ background: '#000', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 420, position: 'relative' }}>
+          {/* Top Bar inside Viewport */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', zIndex: 10, position: 'absolute', top: 0, left: 0, right: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)' }}>
+            <button onClick={() => setStep('source')} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600 }}>
+              <Icon.Back s={18} c="#fff"/> Back
+            </button>
+            <div style={{ color: '#fff', fontSize: 13, fontWeight: 700, letterSpacing: '0.05em' }}>PHOTO</div>
+            <div style={{ display: 'flex', gap: 14 }}>
+              <span style={{ cursor: 'pointer', color: '#fff', opacity: 0.8 }}>⚡</span>
+              <span style={{ cursor: 'pointer', color: '#fff', opacity: 0.8 }}>🔄</span>
+            </div>
+          </div>
+
+          {/* Viewfinder Center */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', padding: 24 }}>
+            {/* Dashed alignment outline */}
+            <div style={{ border: '2px dashed rgba(255,255,255,0.4)', borderRadius: 12, width: '100%', height: '85%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
+              <div style={{ textAlign: 'center', color: '#fff', opacity: 0.6, fontSize: 12, fontWeight: 600 }}>
+                <span style={{ fontSize: 24, display: 'block', marginBottom: 8 }}>📄</span>
+                Align document inside frame
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Bar Shutter */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px 0', background: 'rgba(0,0,0,0.85)', zIndex: 10 }}>
+            <button onClick={capturePhoto} style={{
+              width: 68, height: 68, borderRadius: 999, border: '4px solid #fff',
+              background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', outline: 'none', padding: 0
+            }}>
+              <div style={{ width: 52, height: 52, borderRadius: 999, background: '#fff' }}/>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'photos_view' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${T.line}`, paddingBottom: 10 }}>
+            <button onClick={() => setStep('source')} style={{ background: T.bgAlt, border: 'none', width: 32, height: 32, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <Icon.Back s={16} c={T.ink}/>
+            </button>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.ink }}>Select from Library</div>
+          </div>
+
+          {/* Photos Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+            {mockPhotos.map((item, idx) => (
+              <button key={idx} onClick={() => selectPhoto(item)} style={{
+                aspectRatio: '1', background: '#F8F6F1', border: `1.5px solid ${T.line}`, borderRadius: 10,
+                cursor: 'pointer', padding: 8, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                alignItems: 'center', textAlign: 'center', boxSizing: 'border-box'
+              }}>
+                <div style={{ fontSize: 24, margin: 'auto' }}>📄</div>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: T.ink, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</div>
+                <div style={{ fontSize: 9, color: T.muted }}>{item.size}</div>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setStep('source')} style={{ height: 48, borderRadius: 12, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 14.5, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
+        </div>
+      )}
+
+      {step === 'files_view' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${T.line}`, paddingBottom: 10 }}>
+            <button onClick={() => setStep('source')} style={{ background: T.bgAlt, border: 'none', width: 32, height: 32, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <Icon.Back s={16} c={T.ink}/>
+            </button>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.ink }}>Browse Files</div>
+          </div>
+
+          {/* Files List */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+            {mockFiles.map((file, idx) => (
+              <button key={idx} onClick={() => selectFile(file)} style={{
+                width: '100%', background: '#fff', border: `1px solid ${T.line}`, borderRadius: 12,
+                padding: '10px 12px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                display: 'flex', alignItems: 'center', gap: 10, boxSizing: 'border-box'
+              }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: file.color + '20', color: file.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, flexShrink: 0 }}>
+                  {file.ext}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</div>
+                  <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{file.size} · {file.date}</div>
+                </div>
+                <Icon.ChevronRight s={14} c={T.muted}/>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setStep('source')} style={{ height: 48, borderRadius: 12, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 14.5, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
         </div>
       )}
 
@@ -204,7 +333,7 @@ function UploadSheet({ presetCat = null, vault, onAttach, onClose }) {
               fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer',
               opacity: cat ? 1 : 0.5
             }}>Attach</button>
-            <button onClick={() => { setPending(null); setStep('source'); }} style={{
+            <button onClick={() => { setPending(null); setStep(prevStep); }} style={{
               height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`,
               background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700,
               color: T.ink2, cursor: 'pointer'
@@ -569,4 +698,4 @@ function ProfileSectionScreen({ sectionId, back, child, vault, addVaultFile, rem
   }
 }
 
-Object.assign(window, { ProfileSectionScreen, VAULT_CATS, VAULT_INITIAL });
+Object.assign(window, { ProfileSectionScreen, VAULT_CATS, VAULT_INITIAL, UploadSheet, AddDashedBtn });

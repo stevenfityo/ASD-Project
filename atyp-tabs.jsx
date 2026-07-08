@@ -2,26 +2,37 @@
 
 // ── Profile ───────────────────────────────────────────────────────────
 
-function ProfileScreen({ onTab, back, child, openSection }) {
-  const groups = [
-    {
-      title: 'Daily Care',
-      items: [
-        { key: 'routine',   I: Icon.Clipboard, label: 'Daily Routine',     sub: 'Meds, meals, therapy, sleep'     },
-        { key: 'trusted',   I: Icon.Heart,     label: 'Trusted Person',    sub: 'Emergency guardian access'       },
-      ]
-    },
-    {
-      title: 'Documents Vault',
-      items: [
-        { key: 'documents', I: Icon.Folder,    label: 'All documents',       sub: 'Browse and upload files'        },
-        { key: 'medical',   I: Icon.Hospital,  label: 'Medical',           sub: 'Doctors, medications, allergies' },
-        { key: 'therapies', I: Icon.Brain,     label: 'Therapies',         sub: 'ABA, speech, occupational'       },
-        { key: 'education', I: Icon.School,    label: 'Education & IEP',   sub: 'School, accommodations, goals'   },
-        { key: 'legal',     I: Icon.Scale,     label: 'Legal & Financial', sub: 'Guardianship, ABLE, trusts'      },
-      ]
-    },
-  ];
+function ProfileScreen({ onTab, back, child, openSection, vault, addVaultFile }) {
+  const [uploadOpen, setUploadOpen] = React.useState(false);
+
+  const docVaultGroup = {
+    title: 'Documents Vault',
+    items: [
+      { key: 'documents', I: Icon.Folder,    label: 'All documents',       sub: 'Browse and upload files'        },
+      { key: 'medical',   I: Icon.Hospital,  label: 'Medical',           sub: 'Doctors, medications, allergies' },
+      { key: 'therapies', I: Icon.Brain,     label: 'Therapies',         sub: 'ABA, speech, occupational'       },
+      { key: 'education', I: Icon.School,    label: 'Education & IEP',   sub: 'School, accommodations, goals'   },
+      { key: 'legal',     I: Icon.Scale,     label: 'Legal & Financial', sub: 'Guardianship, ABLE, trusts'      },
+    ]
+  };
+
+  const dailyCareGroup = {
+    title: 'Daily Care',
+    items: [
+      { key: 'routine',   I: Icon.Clipboard, label: 'Daily Routine',     sub: 'Meds, meals, therapy, sleep'     },
+      { key: 'trusted',   I: Icon.Heart,     label: 'Trusted Person',    sub: 'Emergency guardian access'       },
+    ]
+  };
+
+  const AddDashedBtn = window.AddDashedBtn || function({ label, onClick }) {
+    return (
+      <button onClick={onClick} style={{ marginTop: 4, width: '100%', background: 'transparent', borderRadius: 14, padding: '12px', border: `1.5px dashed ${T.line}`, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: T.green, fontWeight: 700, fontSize: 13 }}>
+        <Icon.Plus s={15} c={T.green}/> {label}
+      </button>
+    );
+  };
+
+  const UploadSheet = window.UploadSheet;
 
   return (
     <Screen bg={T.bg} bottomTab={<TabBar active="infohub" onTab={onTab} />}>
@@ -63,7 +74,7 @@ function ProfileScreen({ onTab, back, child, openSection }) {
 
       <div style={{ padding: '0 18px', display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 28 }}>
 
-        {/* Profile completion tile */}
+        {/* Profile completeness tile */}
         <div style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>Profile completeness</div>
@@ -75,37 +86,71 @@ function ProfileScreen({ onTab, back, child, openSection }) {
           <div style={{ fontSize: 12, color: T.muted }}>Add medical info to improve your profile</div>
         </div>
 
-        {/* Section groups */}
-        {groups.map(g => (
-          <div key={g.title}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{g.title}</div>
-            <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-              {g.items.map((s, i) => (
-                <button key={s.key} onClick={() => openSection && openSection(s.key)} style={{
-                  width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                  fontFamily: 'inherit', textAlign: 'left',
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '12px 14px',
-                  borderBottom: i < g.items.length - 1 ? `1px solid ${T.line}` : 'none',
+        {/* Daily Care section (first again) */}
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{dailyCareGroup.title}</div>
+          <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+            {dailyCareGroup.items.map((s, i) => (
+              <button key={s.key} onClick={() => openSection && openSection(s.key)} style={{
+                width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', textAlign: 'left',
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 14px',
+                borderBottom: i < dailyCareGroup.items.length - 1 ? `1px solid ${T.line}` : 'none',
+              }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: 9, background: T.greenSoft,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <div style={{
-                    width: 34, height: 34, borderRadius: 9, background: T.greenSoft,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <s.I s={17} c={T.green}/>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em' }}>{s.label}</div>
-                    <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{s.sub}</div>
-                  </div>
-                  <Icon.ChevronRight s={15} c={T.muted}/>
-                </button>
-              ))}
-            </div>
+                  <s.I s={17} c={T.green}/>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em' }}>{s.label}</div>
+                  <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{s.sub}</div>
+                </div>
+                <Icon.ChevronRight s={15} c={T.muted}/>
+              </button>
+            ))}
           </div>
-        ))}
+        </div>
+
+        {/* Documents Vault section (second) */}
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{docVaultGroup.title}</div>
+          <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+            {docVaultGroup.items.map((s, i) => (
+              <button key={s.key} onClick={() => openSection && openSection(s.key)} style={{
+                width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', textAlign: 'left',
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 14px',
+                borderBottom: i < docVaultGroup.items.length - 1 ? `1px solid ${T.line}` : 'none',
+              }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: 9, background: T.greenSoft,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <s.I s={17} c={T.green}/>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, letterSpacing: '-0.01em' }}>{s.label}</div>
+                  <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{s.sub}</div>
+                </div>
+                <Icon.ChevronRight s={15} c={T.muted}/>
+              </button>
+            ))}
+          </div>
+          
+          <div style={{ marginTop: 12 }}>
+            <AddDashedBtn label="Upload document to Vault" onClick={() => setUploadOpen(true)}/>
+          </div>
+        </div>
 
       </div>
+
+      {uploadOpen && UploadSheet && (
+        <UploadSheet presetCat={null} vault={vault} onAttach={addVaultFile} onClose={() => setUploadOpen(false)}/>
+      )}
     </Screen>
   );
 }
@@ -461,7 +506,7 @@ function MarketplaceScreen({ onTab, openListing }) {
 
       {/* Suggest bottom sheet */}
       {showSuggest && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           {/* Backdrop */}
           <div onClick={() => setShowSuggest(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
           {/* Sheet */}

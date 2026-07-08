@@ -111,7 +111,7 @@ function App() {
     case 'stage':body = <StageDetailScreen stageId={stageId} back={back} openQuestion={openQuestion} doneIds={doneIds} child={child} />;break;
     case 'question':body = <QuestionDetailScreen question={question} back={back} isDone={isQuestionDone(question, doneIds)} markDone={markDone} />;break;
     case 'profileSection':body = <ProfileSectionScreen sectionId={profileSectionId} back={back} child={child} vault={vault} addVaultFile={addVaultFile} removeVaultFile={removeVaultFile} />;break;
-    case 'profile':body = <ProfileScreen onTab={goTab} back={back} child={child} openSection={openProfileSection} />;break;
+    case 'profile':body = <ProfileScreen onTab={goTab} back={back} child={child} openSection={openProfileSection} vault={vault} addVaultFile={addVaultFile} />;break;
     case 'events':body = <EventsScreen onTab={goTab} />;break;
     case 'market':body = <MarketplaceScreen onTab={goTab} />;break;
     case 'assistant':body = <AssistantScreen onTab={goTab} child={child} openMap={() => {setStack((p) => [...p, screen]);setScreen('map');}} openProfile={openProfile} openSwitcher={openSwitcher}/>;break;
