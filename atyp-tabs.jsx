@@ -1555,29 +1555,51 @@ function UserProfileScreen({ onTab }) {
               </div>
             ))}
 
-            {showAddChild ? (
-              <div style={{ background: '#fff', borderRadius: 16, padding: '14px', boxShadow: `inset 0 0 0 1.5px ${T.green}` }}>
-                <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 8 }}>Child's name</div>
-                <input autoFocus value={newChildName} onChange={e => setNewChildName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addChild()}
-                  placeholder="e.g. Oliver"
-                  style={{ width: '100%', boxSizing: 'border-box', height: 44, border: `1.5px solid ${T.line}`, borderRadius: 10, padding: '0 12px', fontSize: 15, color: T.ink, fontFamily: 'inherit', outline: 'none', background: T.bg }}
-                  onFocus={e => e.currentTarget.style.borderColor = T.green}
-                  onBlur={e => e.currentTarget.style.borderColor = T.line} />
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <button onClick={() => setShowAddChild(false)} style={{ flex: 1, height: 40, borderRadius: 10, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
-                  <button onClick={addChild} style={{ flex: 1, height: 40, borderRadius: 10, border: 'none', background: T.green, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>Add</button>
+            <button onClick={() => setShowAddChild(true)} style={{
+              background: 'transparent', borderRadius: 16, padding: '14px',
+              border: `1.5px dashed ${T.line}`, cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              color: T.green, fontWeight: 700, fontSize: 14
+            }}>
+              <Icon.Plus s={18} c={T.green} /> Add another child
+            </button>
+
+            {showAddChild && (
+              <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                <div onClick={() => setShowAddChild(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+                <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 32px', animation: 'atypSheetUp .28s ease' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
+                  </div>
+
+                  <div style={{ fontSize: 19, fontWeight: 700, color: T.ink, letterSpacing: '-0.02em', marginTop: 8, marginBottom: 4 }}>Add child</div>
+                  <div style={{ fontSize: 13, color: T.muted, marginBottom: 20, lineHeight: 1.5 }}>Add another child to your profile.</div>
+
+                  <div>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Child's name *</div>
+                    <input autoFocus value={newChildName} onChange={e => setNewChildName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addChild()}
+                      placeholder="e.g. Oliver"
+                      style={{ width: '100%', boxSizing: 'border-box', height: 44, borderRadius: 12, border: `1.5px solid ${T.line}`, padding: '0 14px', fontSize: 15, color: T.ink, fontFamily: 'inherit', outline: 'none', background: T.bg }}
+                      onFocus={e => e.currentTarget.style.borderColor = T.green}
+                      onBlur={e => e.currentTarget.style.borderColor = T.line} />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
+                    <button onClick={addChild} style={{
+                      height: 52, borderRadius: 14, border: 'none', background: T.green,
+                      fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: '#fff',
+                      cursor: 'pointer',
+                      opacity: newChildName.trim() ? 1 : 0.5
+                    }}>Add child</button>
+                    <button onClick={() => { setShowAddChild(false); setNewChildName(''); }} style={{
+                      height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`,
+                      background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700,
+                      color: T.ink2, cursor: 'pointer'
+                    }}>Cancel</button>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <button onClick={() => setShowAddChild(true)} style={{
-                background: 'transparent', borderRadius: 16, padding: '14px',
-                border: `1.5px dashed ${T.line}`, cursor: 'pointer', fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                color: T.green, fontWeight: 700, fontSize: 14
-              }}>
-                <Icon.Plus s={18} c={T.green} /> Add another child
-              </button>
             )}
           </div>
         </div>
