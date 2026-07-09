@@ -1434,15 +1434,22 @@ function ProfileRow({ label, value, editing, onEdit, onChange, onSave, onCancel,
 
 function UserProfileScreen({ onTab }) {
   const [user, setUser] = React.useState({ name: 'Sarah Miller', email: 'sarah@example.com' });
-  const [editField, setEditField] = React.useState(null);
-  const [draft, setDraft] = React.useState({});
   const [children, setChildren] = React.useState(() => [...(window.CHILDREN || [])]);
   const [showAddChild, setShowAddChild] = React.useState(false);
   const [newChildName, setNewChildName] = React.useState('');
+
+  const [showEditName, setShowEditName] = React.useState(false);
+  const [editName, setEditName] = React.useState('');
+  const [showEditEmail, setShowEditEmail] = React.useState(false);
+  const [editEmail, setEditEmail] = React.useState('');
+  const [showEditPassword, setShowEditPassword] = React.useState(false);
   const [pwFields, setPwFields] = React.useState({ current: '', next: '', confirm: '' });
 
-  const startEdit = (field) => { setEditField(field); setDraft({ ...user }); };
-  const saveEdit = () => { setUser({ ...draft }); setEditField(null); };
+  const openEditName = () => { setEditName(user.name); setShowEditName(true); };
+  const saveName = () => { if (editName.trim()) { setUser(u => ({ ...u, name: editName })); setShowEditName(false); } };
+
+  const openEditEmail = () => { setEditEmail(user.email); setShowEditEmail(true); };
+  const saveEmail = () => { if (editEmail.trim()) { setUser(u => ({ ...u, email: editEmail })); setShowEditEmail(false); } };
 
   const removeChild = (id) => setChildren(c => c.filter(ch => ch.id !== id));
   const addChild = () => {
@@ -1482,47 +1489,31 @@ function UserProfileScreen({ onTab }) {
         <div>
           <AccSectionTitle>Personal info</AccSectionTitle>
           <div style={{ background: '#fff', borderRadius: 18, overflow: 'hidden', boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-            <ProfileRow label="Full name" value={editField === 'name' ? draft.name : user.name}
-              editing={editField === 'name'} onEdit={() => startEdit('name')}
-              onChange={v => setDraft(d => ({ ...d, name: v }))} onSave={saveEdit}
-              onCancel={() => setEditField(null)} divider />
-            <ProfileRow label="Email" value={editField === 'email' ? draft.email : user.email}
-              editing={editField === 'email'} onEdit={() => startEdit('email')}
-              onChange={v => setDraft(d => ({ ...d, email: v }))} onSave={saveEdit}
-              onCancel={() => setEditField(null)} divider />
+            <button onClick={openEditName} style={{ width: '100%', padding: '14px 16px', background: 'none', border: 'none', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>Full name</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.ink, marginTop: 2 }}>{user.name}</div>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.green }}>Edit</span>
+            </button>
+            <div style={{ height: 1, background: T.line, marginInline: 16 }} />
 
-            {/* Password row */}
-            <div>
-              <button onClick={() => setEditField(editField === 'password' ? null : 'password')} style={{
-                width: '100%', padding: '14px 16px', background: 'none', border: 'none',
-                fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left'
-              }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>Password</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: T.ink, marginTop: 2, letterSpacing: '0.1em' }}>••••••••</div>
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: editField === 'password' ? T.muted : T.green }}>
-                  {editField === 'password' ? 'Cancel' : 'Change'}
-                </span>
-              </button>
-              {editField === 'password' && (
-                <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[['current', 'Current password'], ['next', 'New password'], ['confirm', 'Confirm new password']].map(([k, lbl]) => (
-                    <div key={k}>
-                      <div style={{ fontSize: 12, color: T.muted, fontWeight: 600, marginBottom: 5 }}>{lbl}</div>
-                      <input type="password" value={pwFields[k]}
-                        onChange={e => setPwFields(p => ({ ...p, [k]: e.target.value }))}
-                        style={{ width: '100%', boxSizing: 'border-box', height: 44, border: `1.5px solid ${T.line}`, borderRadius: 10, background: T.bg, padding: '0 12px', fontSize: 15, color: T.ink, fontFamily: 'inherit', outline: 'none' }}
-                        onFocus={e => e.currentTarget.style.borderColor = T.green}
-                        onBlur={e => e.currentTarget.style.borderColor = T.line} />
-                    </div>
-                  ))}
-                  <button style={{ height: 44, borderRadius: 12, background: T.green, color: '#fff', border: 'none', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 2 }}>
-                    Update password
-                  </button>
-                </div>
-              )}
-            </div>
+            <button onClick={openEditEmail} style={{ width: '100%', padding: '14px 16px', background: 'none', border: 'none', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>Email</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.ink, marginTop: 2 }}>{user.email}</div>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.green }}>Edit</span>
+            </button>
+            <div style={{ height: 1, background: T.line, marginInline: 16 }} />
+
+            <button onClick={() => setShowEditPassword(true)} style={{ width: '100%', padding: '14px 16px', background: 'none', border: 'none', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>Password</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.ink, marginTop: 2, letterSpacing: '0.1em' }}>••••••••</div>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.green }}>Change</span>
+            </button>
           </div>
         </div>
 
@@ -1623,6 +1614,87 @@ function UserProfileScreen({ onTab }) {
         </button>
 
       </div>
+
+      {/* Edit Name Modal */}
+      {showEditName && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={() => setShowEditName(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+          <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 32px', animation: 'atypSheetUp .28s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
+            </div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: T.ink, letterSpacing: '-0.02em', marginTop: 8, marginBottom: 4 }}>Edit full name</div>
+            <div style={{ fontSize: 13, color: T.muted, marginBottom: 20, lineHeight: 1.5 }}>Update your full name.</div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Full name *</div>
+              <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveName()}
+                style={{ width: '100%', boxSizing: 'border-box', height: 44, borderRadius: 12, border: `1.5px solid ${T.line}`, padding: '0 14px', fontSize: 15, color: T.ink, fontFamily: 'inherit', outline: 'none', background: T.bg }}
+                onFocus={e => e.currentTarget.style.borderColor = T.green}
+                onBlur={e => e.currentTarget.style.borderColor = T.line} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={saveName} style={{ height: 52, borderRadius: 14, border: 'none', background: T.green, fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer', opacity: editName.trim() ? 1 : 0.5 }}>Save</button>
+              <button onClick={() => setShowEditName(false)} style={{ height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Email Modal */}
+      {showEditEmail && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={() => setShowEditEmail(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+          <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 32px', animation: 'atypSheetUp .28s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
+            </div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: T.ink, letterSpacing: '-0.02em', marginTop: 8, marginBottom: 4 }}>Edit email</div>
+            <div style={{ fontSize: 13, color: T.muted, marginBottom: 20, lineHeight: 1.5 }}>Update your email address.</div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email *</div>
+              <input autoFocus type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveEmail()}
+                style={{ width: '100%', boxSizing: 'border-box', height: 44, borderRadius: 12, border: `1.5px solid ${T.line}`, padding: '0 14px', fontSize: 15, color: T.ink, fontFamily: 'inherit', outline: 'none', background: T.bg }}
+                onFocus={e => e.currentTarget.style.borderColor = T.green}
+                onBlur={e => e.currentTarget.style.borderColor = T.line} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={saveEmail} style={{ height: 52, borderRadius: 14, border: 'none', background: T.green, fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer', opacity: editEmail.trim() ? 1 : 0.5 }}>Save</button>
+              <button onClick={() => setShowEditEmail(false)} style={{ height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Password Modal */}
+      {showEditPassword && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={() => setShowEditPassword(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+          <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 32px', animation: 'atypSheetUp .28s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
+            </div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: T.ink, letterSpacing: '-0.02em', marginTop: 8, marginBottom: 4 }}>Change password</div>
+            <div style={{ fontSize: 13, color: T.muted, marginBottom: 20, lineHeight: 1.5 }}>Update your password for account security.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[['current', 'Current password'], ['next', 'New password'], ['confirm', 'Confirm new password']].map(([k, lbl]) => (
+                <div key={k}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{lbl} *</div>
+                  <input type="password" value={pwFields[k]} onChange={e => setPwFields(p => ({ ...p, [k]: e.target.value }))}
+                    style={{ width: '100%', boxSizing: 'border-box', height: 44, borderRadius: 12, border: `1.5px solid ${T.line}`, padding: '0 14px', fontSize: 15, color: T.ink, fontFamily: 'inherit', outline: 'none', background: T.bg }}
+                    onFocus={e => e.currentTarget.style.borderColor = T.green}
+                    onBlur={e => e.currentTarget.style.borderColor = T.line} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
+              <button style={{ height: 52, borderRadius: 14, border: 'none', background: T.green, fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer', opacity: (pwFields.current && pwFields.next && pwFields.confirm) ? 1 : 0.5 }}>Update password</button>
+              <button onClick={() => { setShowEditPassword(false); setPwFields({ current: '', next: '', confirm: '' }); }} style={{ height: 52, borderRadius: 14, border: `1.5px solid ${T.line}`, background: 'transparent', fontFamily: 'inherit', fontSize: 16, fontWeight: 700, color: T.ink2, cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </Screen>
   );
 }
