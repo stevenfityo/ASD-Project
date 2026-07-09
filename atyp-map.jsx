@@ -4,6 +4,10 @@
 // Answers also generate a personal route — concrete next steps parents can
 // open, read, and check off (Plan B: "step route"). Progress persists per
 // child in localStorage under the 'atyp_gps' key.
+// The question tree is the "small question model" (SQM): the GPS guides
+// parents on WHAT to ask; finishing a branch hands the collected context to
+// an AI chat (AiHandoffSheet) that provides the answers — the SQM → LLM
+// collaboration at the core of the product.
 
 // ── Life Journey Data ─────────────────────────────────────────────────
 // Each stage has an `entry` moment id. Each choice carries a `next` field:
@@ -18,6 +22,7 @@ const GPS_STAGES = [
       {
         id: 'g1m1',
         question: 'How are you doing emotionally right now?',
+        why: 'Parents who acknowledge their own state early reach support faster. Your wellbeing is the foundation every other decision in this journey rests on.',
         choices: [
           { id: 'a', label: 'Finding my way', emoji: '🌊', next: 'g1m2',
             insight: 'Grief, confusion, and love can coexist. Many parents describe the months after diagnosis as a fog — and then, slowly, clarity. You don\'t need to have it figured out yet. Reaching out to other ASD parents often helps more than any book.' },
@@ -30,6 +35,7 @@ const GPS_STAGES = [
       {
         id: 'g1m2',
         question: 'How has your family reacted to the diagnosis?',
+        why: 'Family alignment determines how much day-to-day support your child gets. Knowing where everyone stands tells you which conversations to have now.',
         choices: [
           { id: 'a', label: 'We\'re united', emoji: '🤝', next: null,
             insight: 'A united family is your child\'s greatest asset. Make sure everyone — grandparents, siblings — has a basic understanding of autism. Books like "Ten Things Every Child with Autism Wishes You Knew" are gentle starting points.' },
@@ -50,6 +56,7 @@ const GPS_STAGES = [
       {
         id: 'g2m1',
         question: 'How has your daily life changed since the diagnosis?',
+        why: 'Daily structure is one of the strongest predictors of calmer days for a child with ASD. This shows where your routines need reinforcement first.',
         choices: [
           { id: 'a', label: 'We built strong routines', emoji: '📅', next: 'g2m2',
             insight: 'Structure is one of the most powerful gifts you can give a child with ASD. Document what works: the morning sequence, calming rituals, the dinner routine. These are gold for caregivers, teachers, and grandparents.' },
@@ -62,6 +69,7 @@ const GPS_STAGES = [
       {
         id: 'g2m2',
         question: 'How are siblings handling life with an ASD brother or sister?',
+        why: 'Siblings shape — and are shaped by — the family system. Naming their reality early prevents resentment and builds lifelong allies for your child.',
         choices: [
           { id: 'a', label: 'They\'re understanding and close', emoji: '❤️', next: null,
             insight: 'Siblings who grow up alongside an ASD sibling often develop extraordinary empathy and resilience. Make sure they also have space to be kids — their own activities, their own one-on-one time with you.' },
@@ -82,6 +90,7 @@ const GPS_STAGES = [
       {
         id: 'g3m1',
         question: 'Does your child know about their autism?',
+        why: 'Self-understanding drives self-esteem and self-advocacy. When and how a child learns about their diagnosis shapes how they see themselves for years.',
         choices: [
           { id: 'a', label: 'Yes — we talk openly', emoji: '💬', next: 'g3m2',
             insight: 'Children who understand their own autism develop better self-advocacy and self-esteem. Keep the conversation ongoing and age-appropriate. Books like "The Reason I Jump" can open wonderful conversations.' },
@@ -94,6 +103,7 @@ const GPS_STAGES = [
       {
         id: 'g3m2',
         question: 'How is your relationship with your partner holding up?',
+        why: 'Parental burnout and relationship strain are the hidden risks of this stage. A stable partnership — or a supported solo parent — is your child\'s infrastructure.',
         choices: [
           { id: 'a', label: 'We\'ve grown closer', emoji: '💑', next: 'g3m3',
             insight: 'Some couples find that raising an ASD child deepens their partnership. Make space to appreciate each other — not just as co-parents, but as partners. Shared purpose is powerful.' },
@@ -106,6 +116,7 @@ const GPS_STAGES = [
       {
         id: 'g3m3',
         question: 'How do you talk to people outside your family about your child?',
+        why: 'Your disclosure style decides how much support your family can draw from schools, friends and community — and models self-acceptance for your child.',
         choices: [
           { id: 'a', label: 'Openly — we don\'t hide it', emoji: '🗣️', next: null,
             insight: 'Openness tends to build more understanding and support around your family. It also models self-acceptance for your child. The families who share openly often find their social worlds expand rather than shrink.' },
@@ -126,6 +137,7 @@ const GPS_STAGES = [
       {
         id: 'g4m1',
         question: 'How is your teen relating to their autism identity?',
+        why: 'How a teenager relates to their diagnosis is one of the strongest mental-health signals of adolescence. It tells us whether identity support is needed now.',
         choices: [
           { id: 'a', label: 'They\'ve embraced it', emoji: '🌈', next: 'g4m2',
             insight: 'More and more young autistic people are finding their identity and each other through neurodiversity communities. If your teen has embraced their autism, that\'s not just okay — it\'s genuinely protective for their mental health.' },
@@ -138,6 +150,7 @@ const GPS_STAGES = [
       {
         id: 'g4m2',
         question: 'What does your teen\'s social world look like?',
+        why: 'Isolation in adolescence is a real mental-health risk, while even one genuine friendship is protective. This shows which kind of support matters next.',
         choices: [
           { id: 'a', label: 'A few meaningful friendships', emoji: '🤝', next: null,
             insight: 'Depth over breadth is often the autistic social style — and that\'s not a deficit, it\'s a strength. One or two genuine friendships provide more wellbeing than a large social network. Celebrate and protect the friendships that exist.' },
@@ -158,6 +171,7 @@ const GPS_STAGES = [
       {
         id: 'g5m1',
         question: 'What does independence look like for your young adult?',
+        why: 'The right services depend entirely on the level of independence you\'re planning for — and many programs have years-long waitlists that reward starting early.',
         choices: [
           { id: 'a', label: 'Fully or mostly independent', emoji: '🌟', next: 'g5m2',
             insight: 'Many autistic adults live fully independent lives — with strategies tailored to their needs. Continue building self-advocacy skills: the ability to understand and communicate one\'s own needs is one of the most valuable things an autistic adult can develop.' },
@@ -170,6 +184,7 @@ const GPS_STAGES = [
       {
         id: 'g5m2',
         question: 'Have you started planning for the long-term future?',
+        why: 'Trusts, guardianship and letters of intent take months to set up and decades to matter. Where you stand today determines the next legal and financial step.',
         choices: [
           { id: 'a', label: 'Yes — we have a plan', emoji: '📋', next: null,
             insight: 'Families who plan legally and financially reduce uncertainty for their child enormously. Make sure you have a special needs trust, a letter of intent (your child\'s story for future caregivers), and clear guardianship arrangements.' },
@@ -190,6 +205,7 @@ const GPS_STAGES = [
       {
         id: 'g6m1',
         question: 'Where does your adult child live?',
+        why: 'Housing determines the entire support system around your adult child. Each arrangement comes with different funding, services and family roles to plan for.',
         choices: [
           { id: 'a', label: 'With us at home', emoji: '🏠', next: 'g6m2',
             insight: 'Many autistic adults live with family — and for some, this is genuinely the right fit. Make sure your adult child has as much agency as possible: their own space, their own schedule, their own decisions. Independence isn\'t only about where you live.' },
@@ -202,6 +218,7 @@ const GPS_STAGES = [
       {
         id: 'g6m2',
         question: 'What brings your adult child the most joy?',
+        why: 'A good adult life is built around what genuinely engages your child. Their sources of joy point to the work, community and daily structure that will last.',
         choices: [
           { id: 'a', label: 'Their special interests', emoji: '⭐', next: null,
             insight: 'Special interests are not just hobbies — for many autistic people they are central to identity and wellbeing. A life built around one\'s passions is a good life. Many autistic adults have found meaningful work and community through their interests.' },
@@ -222,6 +239,7 @@ const GPS_STAGES = [
       {
         id: 'g7m1',
         question: 'Who will advocate for your adult child in the future?',
+        why: 'This is the most consequential question in special-needs planning: who will hold your child\'s story when you can\'t. Everything else builds on this answer.',
         choices: [
           { id: 'a', label: 'A sibling or family member', emoji: '👨‍👩‍👧', next: null,
             insight: 'Sibling caregivers are often deeply committed. But "willing" isn\'t the same as "prepared." Bring your chosen future caregiver into planning conversations now. Share the letter of intent, the financial plan, the daily support needs.' },
@@ -319,6 +337,117 @@ function stagePath(stage, answers) {
   return { steps, nextMoment: null, complete: true };
 }
 
+// ── "Why this matters" — collapsible note under each question. Keyed by
+//    moment id from the caller so it resets when the question advances. ──
+function WhyToggle({ why }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div style={{ marginTop: -6, marginBottom: 14 }}>
+      <button onClick={() => setOpen(o => !o)} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: T.green, display: 'flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ fontSize: 13 }}>💡</span> Why this question matters
+        <span style={{ display: 'inline-flex', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}><Icon.ChevronRight s={12} c={T.green}/></span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 8, background: T.bgAlt, borderRadius: 12, padding: '10px 13px', fontSize: 12.5, color: T.ink2, lineHeight: 1.55 }}>{why}</div>
+      )}
+    </div>
+  );
+}
+
+// ── Ask AI — the SQM → LLM handoff ────────────────────────────────────
+// The GPS guides parents through the questions (the "small question model");
+// this sheet hands the collected context to the AI for the answers. In the
+// prototype the reply is scripted from the chosen insights; "Open in ChatGPT"
+// is a real deep link carrying the same prefilled prompt.
+function AiTypedText({ text, onGrow }) {
+  const [n, setN] = React.useState(0);
+  React.useEffect(() => {
+    setN(0);
+    const id = setInterval(() => setN(cur => {
+      if (cur >= text.length) { clearInterval(id); return cur; }
+      return Math.min(text.length, cur + 3);
+    }), 18);
+    return () => clearInterval(id);
+  }, [text]);
+  React.useEffect(() => { if (onGrow) onGrow(); }, [n]);
+  return <span style={{ whiteSpace: 'pre-wrap' }}>{text.slice(0, n)}{n < text.length ? '▍' : ''}</span>;
+}
+
+function AiHandoffSheet({ stage, path, child, onClose }) {
+  const [thinking, setThinking] = React.useState(true);
+  const scrollRef = React.useRef(null);
+  React.useEffect(() => {
+    const t = setTimeout(() => setThinking(false), 1200);
+    return () => clearTimeout(t);
+  }, []);
+  const scrollDown = () => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; };
+
+  const name = child ? child.name : 'my child';
+  const steps = path.steps;
+  const intro = `${name} is ${child ? `${child.age} ` : ''}and on the autism spectrum. We're at the "${stage.label}" stage (${stage.sub}, ages ${stage.ageRange}).`;
+  const prompt = steps.length > 0
+    ? `${intro} Here's where we stand:\n${steps.map(({ moment, choice }) => `• ${moment.question} — ${choice.label}`).join('\n')}\nWhat should we focus on next?`
+    : `${intro} We're just getting started. What should we know and focus on first?`;
+  const answer = steps.length > 0
+    ? `Here's what stands out for ${name} at the ${stage.label} stage, based on your answers:\n\n${steps.map(({ choice }) => `${choice.emoji} ${choice.insight}`).join('\n\n')}\n\nI've turned these into concrete next steps on your route — find them at the 🏁 flag on the map. Anything you'd like to go deeper on?`
+    : `${stage.description}\n\nAnswer the questions on this stage and I'll tailor my guidance to ${name}'s specific path — every answer sharpens what I can tell you.`;
+  const gptUrl = 'https://chatgpt.com/?q=' + encodeURIComponent(prompt);
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 210, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <style>{`@keyframes atypAiDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-2px)}}`}</style>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+      <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', maxHeight: '88%', display: 'flex', flexDirection: 'column', animation: 'atypSheetUp .28s ease' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4, flexShrink: 0 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
+        </div>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 18px 12px', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0, background: `linear-gradient(150deg, ${T.green}, ${T.greenDeep})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon.Sparkle s={16} c="#fff"/>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink }}>aTyp AI</div>
+            <div style={{ fontSize: 11.5, color: T.muted }}>We guide the questions — AI answers</div>
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        </div>
+        {/* Conversation */}
+        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '2px 18px 8px' }}>
+          {/* User prompt bubble — the context the GPS collected */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <div style={{ maxWidth: '85%', background: T.green, color: '#fff', borderRadius: '18px 4px 18px 18px', padding: '11px 14px', fontSize: 12.5, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{prompt}</div>
+          </div>
+          {/* AI reply bubble */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
+            <div style={{ width: 26, height: 26, borderRadius: 999, flexShrink: 0, marginTop: 2, background: `linear-gradient(150deg, ${T.green}, ${T.greenDeep})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon.Sparkle s={12} c="#fff"/>
+            </div>
+            <div style={{ flex: 1, background: T.bgAlt, borderRadius: '4px 18px 18px 18px', padding: '12px 14px', fontSize: 13, color: T.ink2, lineHeight: 1.55 }}>
+              {thinking ? (
+                <div style={{ display: 'flex', gap: 4, padding: '4px 2px' }}>
+                  {[0, 1, 2].map(i => (
+                    <span key={i} style={{ width: 6, height: 6, borderRadius: 999, background: T.muted, animation: `atypAiDot 1.1s ${i * 0.18}s infinite` }}/>
+                  ))}
+                </div>
+              ) : (
+                <AiTypedText text={answer} onGrow={scrollDown}/>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Actions */}
+        <div style={{ flexShrink: 0, padding: '10px 18px 30px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: `1px solid ${T.line}` }}>
+          <a href={gptUrl} target="_blank" rel="noreferrer" style={{ height: 46, borderRadius: 14, border: `1.5px solid ${T.line}`, background: '#fff', color: T.ink, fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            Continue in ChatGPT ↗
+          </a>
+          <button onClick={onClose} style={{ height: 46, borderRadius: 14, border: 'none', background: T.green, color: '#fff', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Done</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── GPS Timeline (age-anchored branching life-path tree) ──────────────
 function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   // When embedded (inside AssistantScreen's Screen + header) the status-bar
@@ -342,6 +471,8 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
 
   // sheetStage: the stage whose question sheet (bottom popup) is open, or null.
   const [sheetStage, setSheetStage] = React.useState(null);
+  // aiStage: the stage whose Ask-AI sheet is open (SQM → LLM handoff), or null.
+  const [aiStage, setAiStage] = React.useState(null);
   // Whether the route (next steps) bottom sheet is open.
   const [showSummary, setShowSummary] = React.useState(false);
   // Which route step card is expanded inside the route sheet.
@@ -419,7 +550,10 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
               <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.5, maxWidth: 260 }}>
                 You've walked through {stage.label}. Your answers added new steps to your route — find it at the 🏁 flag.
               </div>
-              <button onClick={() => setSheetStage(null)} style={{ marginTop: 6, width: '100%', height: 48, borderRadius: 14, border: 'none', background: T.green, color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Done</button>
+              <button onClick={() => { setSheetStage(null); setAiStage(stage); }} style={{ marginTop: 6, width: '100%', height: 48, borderRadius: 14, border: 'none', background: T.green, color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <Icon.Sparkle s={15} c="#fff"/> Ask aTyp AI about this
+              </button>
+              <button onClick={() => setSheetStage(null)} style={{ width: '100%', height: 44, borderRadius: 14, border: 'none', background: 'transparent', color: T.muted, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Back to map</button>
             </div>
           ) : (
             <>
@@ -429,12 +563,14 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
               <div style={{ background: T.greenSoft, borderRadius: 16, padding: '14px 16px', marginBottom: 14 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{moment.question}</div>
               </div>
+              {moment.why && <WhyToggle key={moment.id} why={moment.why}/>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {moment.choices.map(ch => (
                   <button key={ch.id} onClick={() => {
                     saveAnswer(stage, moment.id, ch.id);
                     // Last question of the branch — close the sheet right away
-                    // and return to the map instead of showing a confirmation.
+                    // and return to the map. Asking the AI stays the parent's
+                    // own choice (button below / on the completed stage).
                     if (!ch.next) setSheetStage(null);
                   }} style={{
                     width: '100%', background: '#fff', borderRadius: 16, padding: '14px 16px',
@@ -455,12 +591,27 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
               <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', marginTop: 12 }}>
                 There is no right answer — only your family's path.
               </div>
+              {/* Optional AI handoff — always the parent's choice, never automatic. */}
+              <button onClick={() => { setSheetStage(null); setAiStage(stage); }} style={{
+                marginTop: 12, width: '100%', height: 46, borderRadius: 14,
+                border: `1.5px solid rgba(45,106,79,0.35)`, background: T.greenSoft,
+                color: T.green, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}>
+                <Icon.Sparkle s={15} c={T.green}/>
+                {path.steps.length > 0 ? 'Ask aTyp AI about your answers' : 'Ask aTyp AI about this stage'}
+              </button>
             </>
           )}
         </div>
       </div>
     );
   })() : null;
+
+  // ── Ask-AI sheet — opens after the final answer of a stage's branch. ──
+  const aiSheet = aiStage ? (
+    <AiHandoffSheet stage={aiStage} path={stagePath(aiStage, answers)} child={child} onClose={() => setAiStage(null)}/>
+  ) : null;
 
   // ── Personal route (Plan B: "Маршрут кроків") ─────────────────────────
   // Every answered question contributes one concrete action. Steps from the
@@ -589,6 +740,7 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {questionSheet}
+      {aiSheet}
       {summarySheet}
       {/* Child pill */}
       <div style={{ flexShrink: 0, paddingTop: topPad, paddingInline: 18, paddingBottom: 12,
