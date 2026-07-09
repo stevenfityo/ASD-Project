@@ -1,6 +1,9 @@
 // aTyp — GPS: Life Journey Guide for ASD Parents.
 // A branching decision tree: each answer reveals a different next question,
 // so parents can preview the path their child may take based on their choices.
+// Answers also generate a personal route — concrete next steps parents can
+// open, read, and check off (Plan B: "step route"). Progress persists per
+// child in localStorage under the 'atyp_gps' key.
 
 // ── Life Journey Data ─────────────────────────────────────────────────
 // Each stage has an `entry` moment id. Each choice carries a `next` field:
@@ -232,6 +235,54 @@ const GPS_STAGES = [
   },
 ];
 
+// ── Route actions ─────────────────────────────────────────────────────
+// Every answer maps to one concrete next step. Keyed `${momentId}${choiceId}`
+// (moment ids are globally unique). These become the personal route.
+const GPS_ACTIONS = {
+  g1m1a: { title: 'Connect with other ASD parents', detail: 'Join a local or online parent support group this week. Hearing from parents a few steps ahead of you brings more clarity than any book.' },
+  g1m1b: { title: 'Set up your family systems', detail: 'Use your current energy well: build the routine calendar, organize paperwork, book upcoming appointments — and schedule one rest day for yourself to protect against later burnout.' },
+  g1m1c: { title: 'Get support for yourself first', detail: 'Ask your doctor about parent support groups and respite care options. Book one hour this week that is only for you.' },
+  g1m2a: { title: 'Give family a shared foundation', detail: 'Pick one gentle resource — like "Ten Things Every Child with Autism Wishes You Knew" — and share it with grandparents and siblings.' },
+  g1m2b: { title: 'Plan one honest conversation', detail: 'Choose the family member who matters most and set up a calm one-on-one talk. An autism-informed family therapist can help open the hardest conversations.' },
+  g1m2c: { title: 'Find your community online', detail: 'Join an ASD-parents community (Autism Society forums, local parent groups) and introduce yourself. You don\'t have to discover this alone.' },
+  g2m1a: { title: 'Document what works', detail: 'Write down your morning sequence, calming rituals and dinner routine so caregivers, teachers and grandparents can follow them.' },
+  g2m1b: { title: 'Try one visual schedule', detail: 'Pick the hardest part of the day and test a simple picture schedule for two weeks. Permission to experiment — the "right" routine is the one that works for your child.' },
+  g2m1c: { title: 'Apply for respite care', detail: 'Look up respite care and in-home support programs in your area and start one application this week. Stabilising daily life comes first.' },
+  g2m2a: { title: 'Protect sibling one-on-one time', detail: 'Put a recurring "just us" hour with each sibling into the family calendar — they need space to just be kids.' },
+  g2m2b: { title: 'Find a sibling support group', detail: 'Search for Sibshops or similar sibling groups nearby and book a first session. Their feelings are valid and deserve their own space.' },
+  g2m2c: { title: 'Talk to a genetic counselor', detail: 'If more children are on your mind, book a genetic counseling consult to think through the numbers calmly.' },
+  g3m1a: { title: 'Keep the conversation alive', detail: 'Pick an age-appropriate book or video about autism to enjoy together this month — like "The Reason I Jump".' },
+  g3m1b: { title: 'Prepare the conversation', detail: 'Gather the words, books and examples you\'d use, so you\'re ready to gently name autism on your child\'s timeline.' },
+  g3m1c: { title: 'Plan the disclosure talk', detail: 'Most experts recommend telling children between ages 6–10. Choose a calm moment in the coming weeks and prepare a simple, positive explanation.' },
+  g3m2a: { title: 'Schedule partner time', detail: 'Protect one evening a month that is about you two — not logistics, not therapy schedules.' },
+  g3m2b: { title: 'Book couples support', detail: 'Find a therapist familiar with special-needs parenting stress. Even 30 minutes of scheduled time together after bedtime helps over months.' },
+  g3m2c: { title: 'Map your support network', detail: 'List three people or services you can call on, and look up programs for single parents of children with disabilities in your community.' },
+  g3m3a: { title: 'Build your ally circle', detail: 'Identify the teachers, neighbors and friends who "get it" and keep them in the loop — they are your infrastructure.' },
+  g3m3b: { title: 'Prepare a short explanation', detail: 'Write a two-sentence description of your child\'s needs you can use when it serves them — at school, activities, or travel.' },
+  g3m3c: { title: 'Let one trusted person in', detail: 'Choose one person and share the full story with them. Having someone who knows everything matters more than you might expect.' },
+  g4m1a: { title: 'Connect them with community', detail: 'Help your teen find neurodiversity communities or a positive autistic role model or mentor.' },
+  g4m1b: { title: 'Find an affirming therapist', detail: 'Look for an autistic-affirming therapist. Teenage grief or shame about the diagnosis is a mental-health signal worth acting on.' },
+  g4m1c: { title: 'Try a side-door approach', detail: 'Watch a documentary or series featuring autistic adults together — no pressure, no big talk, just exposure.' },
+  g4m2a: { title: 'Protect the friendships', detail: 'Make hangouts easy: rides, predictable plans, a sensory-friendly place. One or two genuine friendships are worth protecting.' },
+  g4m2b: { title: 'Make online life safe', detail: 'Talk through privacy and safety rules together — and treat online friends as real friends, because they are.' },
+  g4m2c: { title: 'Find one interest-based group', detail: 'Search for a club around their passion — gaming, anime, robotics — and try one meeting. Shared passion is the best connector.' },
+  g5m1a: { title: 'Build self-advocacy skills', detail: 'Practice together how to explain their needs at college, at work, and at the doctor\'s office.' },
+  g5m1b: { title: 'Apply for waiver programs', detail: 'Research your state\'s Medicaid HCBS waivers now — waitlists can run years. Start the process before age 18.' },
+  g5m1c: { title: 'Meet a transition specialist', detail: 'Request a transition-planning meeting through the IEP process this semester. Post-secondary planning should already be underway.' },
+  g5m2a: { title: 'Review the plan yearly', detail: 'Put an annual review of the special needs trust, letter of intent and guardianship arrangements into your calendar.' },
+  g5m2b: { title: 'Book the attorney meeting', detail: 'Schedule one meeting with a special needs attorney. That single action tends to unlock everything else.' },
+  g5m2c: { title: 'Start with one conversation', detail: 'Invite one trusted person into the "what comes after us" topic. You don\'t have to plan alone — you just have to start.' },
+  g6m1a: { title: 'Grow agency at home', detail: 'Give your adult child one new domain to fully own — their schedule, their meals, a personal budget.' },
+  g6m1b: { title: 'Stay actively involved', detail: 'Set a regular visiting rhythm, know the staff by name, and keep your adult child\'s own preferences at the center.' },
+  g6m1c: { title: 'Add supportive tech', detail: 'Set up reminder apps, smart-home helpers and a video-call routine that quietly extend independence.' },
+  g6m2a: { title: 'Invest in the passion', detail: 'Find a community, course or work opportunity built around their special interest — for many autistic adults it\'s the center of a good life.' },
+  g6m2b: { title: 'Stabilize the routine', detail: 'Protect the weekly structure and plan any changes well in advance, together. Predictability is a foundation, not a limitation.' },
+  g6m2c: { title: 'Ritualize family time', detail: 'Make family time predictable: same day, same shared activity, something to look forward to.' },
+  g7m1a: { title: 'Prepare the future advocate', detail: 'Bring your chosen family member into planning now: share the letter of intent, the finances and the daily-support details.' },
+  g7m1b: { title: 'Vet the professional guardian', detail: 'Interview candidates with autism experience, check references, visit their programs — and include your adult child\'s preferences.' },
+  g7m1c: { title: 'See an estate planning attorney', detail: 'Book a special-needs estate planning consult. It\'s the most important unanswered question — and it\'s answerable.' },
+};
+
 function stageStatus(stage, childAge) {
   if (childAge > stage.maxAge) return 'past';
   if (childAge >= stage.minAge) return 'current';
@@ -276,19 +327,31 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   const childAge = child ? child.age : 10;
   const currentIndex = currentStageIndex(childAge);
 
-  const [answers, setAnswers] = React.useState({});
+  // All GPS progress (answers + completed route steps, per child) lives in one
+  // localStorage blob so it survives sessions and child switches.
+  const childId = child ? child.id : 'default';
+  const [gpsStore, setGpsStore] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem('atyp_gps')) || {}; } catch { return {}; }
+  });
+  React.useEffect(() => {
+    try { localStorage.setItem('atyp_gps', JSON.stringify(gpsStore)); } catch {}
+  }, [gpsStore]);
+  const answers   = (gpsStore[childId] || {}).answers || {};
+  const doneSteps = (gpsStore[childId] || {}).done || {};
+  const updateChild = (fn) => setGpsStore(prev => ({ ...prev, [childId]: fn(prev[childId] || {}) }));
+
   // sheetStage: the stage whose question sheet (bottom popup) is open, or null.
   const [sheetStage, setSheetStage] = React.useState(null);
-  // Whether the summary / forecast bottom sheet is open.
+  // Whether the route (next steps) bottom sheet is open.
   const [showSummary, setShowSummary] = React.useState(false);
-
-  const getAnswer = (stageId, momentId) => answers[`${stageId}_${momentId}`];
+  // Which route step card is expanded inside the route sheet.
+  const [expandedStep, setExpandedStep] = React.useState(null);
 
   // Saving an answer may re-route the branch. Prune any answers that belonged
   // to moments past the one being (re)answered, so stale cards don't linger.
   const saveAnswer = (stage, momentId, choiceId) => {
-    setAnswers(prev => {
-      const next = { ...prev, [`${stage.id}_${momentId}`]: choiceId };
+    updateChild(cur => {
+      const next = { ...(cur.answers || {}), [`${stage.id}_${momentId}`]: choiceId };
       const live = new Set();
       let mId = stage.entry;
       const seen = new Set();
@@ -306,9 +369,13 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
       Object.keys(next).forEach(k => {
         if (k.startsWith(`${stage.id}_`) && !live.has(k)) delete next[k];
       });
-      return next;
+      return { ...cur, answers: next };
     });
   };
+
+  const toggleStep = (key) => updateChild(cur => ({
+    ...cur, done: { ...(cur.done || {}), [key]: !(cur.done || {})[key] },
+  }));
 
   // Precompute branch state + progressive unlock for every stage.
   const stageState = GPS_STAGES.map(stage => ({ stage, path: stagePath(stage, answers) }));
@@ -350,7 +417,7 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
               </div>
               <div style={{ fontSize: 17, fontWeight: 800, color: T.ink }}>Stage complete</div>
               <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.5, maxWidth: 260 }}>
-                You've walked through {stage.label}. Your answers shape the road ahead.
+                You've walked through {stage.label}. Your answers added new steps to your route — find it at the 🏁 flag.
               </div>
               <button onClick={() => setSheetStage(null)} style={{ marginTop: 6, width: '100%', height: 48, borderRadius: 14, border: 'none', background: T.green, color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Done</button>
             </div>
@@ -390,12 +457,24 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
     );
   })() : null;
 
-  // Path summary across all completed stages.
-  const summary = stageState
-    .filter(s => s.path.complete && s.path.steps.length > 0)
-    .map(s => ({ stage: s.stage, steps: s.path.steps }));
+  // ── Personal route (Plan B: "Маршрут кроків") ─────────────────────────
+  // Every answered question contributes one concrete action. Steps from the
+  // current stage come first, then the road ahead, then revisited past stages.
+  const stageOrder = [];
+  for (let i = currentIndex; i < GPS_STAGES.length; i++) stageOrder.push(i);
+  for (let i = currentIndex - 1; i >= 0; i--) stageOrder.push(i);
+  const route = [];
+  stageOrder.forEach(i => {
+    const { stage, path } = stageState[i];
+    path.steps.forEach(({ moment, choiceId, choice }) => {
+      const action = GPS_ACTIONS[`${moment.id}${choiceId}`];
+      if (action) route.push({ key: `${stage.id}_${moment.id}`, stage, action, choice });
+    });
+  });
+  const routeSteps = route.slice(0, 6);
+  const doneCount = routeSteps.filter(s => doneSteps[s.key]).length;
 
-  // ── Summary / forecast sheet — the final node opens this bottom popup. ──
+  // ── Route sheet — the final node opens the personal step route. ───────
   const summarySheet = showSummary ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
       <div onClick={() => setShowSummary(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
@@ -404,36 +483,88 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
           <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
         </div>
         <div style={{ fontSize: 19, fontWeight: 800, color: T.ink, letterSpacing: '-0.02em', marginTop: 6, marginBottom: 4 }}>
-          Your family's path so far
+          Your route
         </div>
-        <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, marginBottom: 16 }}>
-          A picture of the journey, shaped by the choices you've made.
+        <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, marginBottom: 14 }}>
+          {routeSteps.length === 0
+            ? 'Your personal next steps, built from your answers.'
+            : `${routeSteps.length} step${routeSteps.length > 1 ? 's' : ''} from today — built from your answers on the map.`}
         </div>
-        {summary.length === 0 ? (
+        {routeSteps.length === 0 ? (
           <div style={{ background: T.greenSoft, borderRadius: 14, padding: '18px 16px', fontSize: 13, color: T.ink2, lineHeight: 1.55, textAlign: 'center' }}>
-            Answer a few questions on the map to see your path take shape.
+            Answer a few questions on the map — each answer adds a step to your family's route.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {summary.map(({ stage, steps }) => (
-              <div key={stage.id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
-                  <span style={{ fontSize: 15 }}>{stage.emoji}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>{stage.label}</span>
-                </div>
-                {steps.map(({ moment, choice }) => (
-                  <div key={moment.id} style={{ background: T.bgAlt, borderRadius: 12, padding: '10px 12px', marginBottom: 6 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 3 }}>
-                      {choice ? `${choice.emoji} ${choice.label}` : '—'}
-                    </div>
-                    <div style={{ fontSize: 11.5, color: T.ink2, lineHeight: 1.5 }}>
-                      {choice ? choice.insight : ''}
-                    </div>
-                  </div>
-                ))}
+          <>
+            {/* Route progress */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'rgba(45,106,79,0.15)', overflow: 'hidden' }}>
+                <div style={{ width: `${Math.round((doneCount / routeSteps.length) * 100)}%`, height: '100%', background: T.mint, borderRadius: 99, transition: 'width .25s' }}/>
               </div>
-            ))}
-          </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.green, whiteSpace: 'nowrap' }}>
+                {doneCount}/{routeSteps.length} done
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {routeSteps.map((step, idx) => {
+                const isDone = !!doneSteps[step.key];
+                const isOpen = expandedStep === step.key;
+                return (
+                  <div key={step.key} style={{
+                    background: isDone ? T.greenSoft : '#fff', borderRadius: 16,
+                    border: `1.5px solid ${isDone ? T.mint : T.line}`,
+                    boxShadow: isDone ? 'none' : '0 2px 8px rgba(27,36,33,0.05)',
+                    transition: 'all .18s', overflow: 'hidden',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', cursor: 'pointer' }}
+                      onClick={() => setExpandedStep(isOpen ? null : step.key)}>
+                      {/* check circle */}
+                      <button onClick={(e) => { e.stopPropagation(); toggleStep(step.key); }} style={{
+                        width: 28, height: 28, borderRadius: 999, flexShrink: 0, marginTop: 1,
+                        border: isDone ? 'none' : `2px solid ${T.line}`,
+                        background: isDone ? T.mint : '#fff',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all .15s',
+                      }}>
+                        {isDone
+                          ? <Icon.Check s={15} c="#fff" sw={3}/>
+                          : <span style={{ fontSize: 11.5, fontWeight: 700, color: T.muted }}>{idx + 1}</span>}
+                      </button>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35,
+                          color: isDone ? T.muted : T.ink,
+                          textDecoration: isDone ? 'line-through' : 'none' }}>
+                          {step.action.title}
+                        </div>
+                        <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                          {step.stage.emoji} {step.stage.label} · {step.choice ? step.choice.label : ''}
+                        </div>
+                      </div>
+                      <div style={{ flexShrink: 0, marginTop: 4, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }}>
+                        <Icon.ChevronRight s={15} c={T.muted}/>
+                      </div>
+                    </div>
+                    {isOpen && (
+                      <div style={{ padding: '0 14px 13px 54px' }}>
+                        <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.55 }}>{step.action.detail}</div>
+                        {step.choice && (
+                          <div style={{ fontSize: 11.5, color: T.muted, lineHeight: 1.5, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${isDone ? 'rgba(45,106,79,0.15)' : T.line}` }}>
+                            {step.choice.insight}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {doneCount === routeSteps.length && (
+              <div style={{ marginTop: 14, background: T.mintBg, borderRadius: 14, padding: '14px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: T.greenDeep }}>
+                🎉 Route complete — answer more questions to extend it.
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -484,7 +615,7 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
             {child.name}'s life path
           </div>
           <div style={{ fontSize: 12, color: T.ink2, lineHeight: 1.5, marginBottom: 12 }}>
-            A guide through the years ahead. Each answer shapes what comes next — and the road ahead unlocks as you go.
+            A guide through the years ahead. Each answer shapes what comes next — and adds a step to your personal route at the finish.
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'rgba(45,106,79,0.15)', overflow: 'hidden' }}>
@@ -558,7 +689,7 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
             );
           })}
 
-          {/* summary / forecast node */}
+          {/* route node — opens the personal step route */}
           <button
             onClick={summaryUnlocked ? () => setShowSummary(true) : undefined}
             style={{
@@ -571,10 +702,18 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
               boxShadow: summaryUnlocked ? '0 6px 16px rgba(156,122,26,0.22)' : 'none',
             }}>
             <span style={{ fontSize: 28, opacity: summaryUnlocked ? 1 : 0.5 }}>🏁</span>
+            {routeSteps.length > 0 && (
+              <div style={{ position: 'absolute', bottom: -3, right: -6, height: 18, padding: '0 6px', borderRadius: 999,
+                background: doneCount === routeSteps.length ? T.mint : T.green, color: '#fff',
+                fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '2px solid #fff' }}>
+                {doneCount}/{routeSteps.length}
+              </div>
+            )}
           </button>
           <div style={{ position: 'absolute', left: summaryCenter.x, top: summaryCenter.y + 38, transform: 'translateX(-50%)', width: 138, textAlign: 'center', pointerEvents: 'none' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: summaryUnlocked ? T.ink : T.muted, lineHeight: 1.2 }}>Your path</div>
-            <div style={{ fontSize: 10.5, color: T.muted, marginTop: 1 }}>Summary &amp; forecast</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: summaryUnlocked ? T.ink : T.muted, lineHeight: 1.2 }}>Your route</div>
+            <div style={{ fontSize: 10.5, color: T.muted, marginTop: 1 }}>Your next steps</div>
           </div>
         </div>
       </div>
