@@ -3,6 +3,16 @@
 
 const PARENT_NAME = 'Maria';
 
+// Intro wishes — one is picked at random each time the intro plays.
+const INTRO_WISHES = [
+  "You're going to have a great day today. ✨",
+  'Wishing you a calm and easy day. 🍃',
+  "You're doing better than you think. 💚",
+  'May today bring you a small win. 🌱',
+  'Take it one step at a time today. ☀️',
+  'Someone little is lucky to have you. 🤍',
+];
+
 // Mood check-in options + supportive follow-ups.
 const MOODS = [
   { id: 'great',       emoji: '😊', label: 'Great',       reply: 'Love to hear it! Keep that energy.' },
@@ -23,6 +33,7 @@ function HomeScreen({ onTab, openProfile, openStage, openQuestion, child, openSw
   const [intro, setIntro] = React.useState(() => !window.__atypGreeted);
   const [introLeaving, setIntroLeaving] = React.useState(false);
   const played = React.useRef(!window.__atypGreeted).current; // stagger content only after the intro
+  const wish = React.useRef(INTRO_WISHES[Math.floor(Math.random() * INTRO_WISHES.length)]).current;
   const dismissIntro = React.useCallback(() => {
     setIntroLeaving(true);
     setTimeout(() => setIntro(false), 380);
@@ -30,7 +41,7 @@ function HomeScreen({ onTab, openProfile, openStage, openQuestion, child, openSw
   React.useEffect(() => {
     if (!intro) return;
     window.__atypGreeted = true;
-    const t = setTimeout(dismissIntro, 2100);
+    const t = setTimeout(dismissIntro, 3600);
     return () => clearTimeout(t);
   }, []);
 
@@ -185,11 +196,12 @@ function HomeScreen({ onTab, openProfile, openStage, openQuestion, child, openSw
           </div>
           <div style={{
             marginTop: 8, background: '#fff', borderRadius: '20px 20px 20px 6px', padding: '13px 18px',
+            maxWidth: 260, textAlign: 'center', lineHeight: 1.45,
             boxShadow: `inset 0 0 0 1px ${T.line}, 0 10px 28px rgba(27,36,33,0.08)`,
             fontSize: 15, fontWeight: 600, color: T.ink2,
-            animation: 'atypBubbleIn .45s cubic-bezier(.2,.8,.2,1) both', animationDelay: '.65s',
+            animation: 'atypBubbleIn .45s cubic-bezier(.2,.8,.2,1) both', animationDelay: '.85s',
           }}>
-            How are you today?
+            {wish}
           </div>
         </div>
       )}
