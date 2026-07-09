@@ -431,7 +431,12 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {moment.choices.map(ch => (
-                  <button key={ch.id} onClick={() => saveAnswer(stage, moment.id, ch.id)} style={{
+                  <button key={ch.id} onClick={() => {
+                    saveAnswer(stage, moment.id, ch.id);
+                    // Last question of the branch — close the sheet right away
+                    // and return to the map instead of showing a confirmation.
+                    if (!ch.next) setSheetStage(null);
+                  }} style={{
                     width: '100%', background: '#fff', borderRadius: 16, padding: '14px 16px',
                     border: `2px solid ${T.line}`,
                     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
