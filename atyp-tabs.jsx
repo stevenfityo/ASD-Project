@@ -294,7 +294,7 @@ function EventsScreen({ onTab }) {
 
       {/* FAB */}
       <button onClick={() => setShowAdd(true)} style={{
-        position: 'absolute', right: 18, bottom: 110,
+        position: 'absolute', right: 18, bottom: 170,
         width: 56, height: 56, borderRadius: 999, border: 'none',
         background: T.green, color: '#fff', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -494,7 +494,7 @@ function MarketplaceScreen({ onTab, openListing }) {
 
       {/* FAB */}
       <button onClick={() => setShowSuggest(true)} style={{
-        position: 'absolute', right: 18, bottom: 110,
+        position: 'absolute', right: 18, bottom: 170,
         width: 56, height: 56, borderRadius: 999, border: 'none',
         background: T.green, color: '#fff', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
