@@ -1,2600 +1,929 @@
-// aTyp — GPS question data.
-// SOURCE OF TRUTH: "Additional material/2021-01-25 Questions you need to ask
-// V_, Moish_Larry.xlsx" (Moisha's question grid). Questions are copied verbatim.
+// aTyp — GPS question data (Small Question Model).
+// SOURCE OF TRUTH: "Additional material/JoyDew_GPS_Level_One_Pilot_Small_Question_
+// Model_for_Pilot_v1.xlsx" — Moisha's tagged pilot (90 questions, 8 milestones).
+// Fields come straight from his columns; nothing here is invented.
 //
-// Structure of that Excel: columns = 8 age stages, rows = 8 categories. We keep
-// the same shape here:
-//   GPS_STAGES[]  = the 8 age stages (the GPS path the child travels by age).
-//     .categories[] = Moisha's categories that have questions at that age.
-//       .questions[] = the cell's questions, in Moisha's order.
-//         level  : 1 = the first (headline) question of the category, 2 = the
-//                  follow-up rows beneath it. (Moisha groups a lead question
-//                  with sub-rows, e.g. "What are my rights?" → hometown/county…)
-//         timing : "current" or "future". Moisha's grid has no such column, so
-//                  we tag each question: planning / anticipation / next-stage
-//                  wording ("plan", "expect", "who will pay", "protect …future",
-//                  "how will …") => future; present routine / rights / needs =>
-//                  current. This is a first-pass heuristic — easy to retune by
-//                  editing a question's `timing` field.
+//   GPS_MILESTONES[]        the 8 milestones, shown on the GPS path.
+//     .ageLabel / .isTrigger  Moisha's "Age or Trigger": some milestones are
+//                             age-anchored (Ages 15-17), some are triggered by an
+//                             event, not a year (puberty, family aging).
+//     .questions[]          Level-1 root questions. Each carries .timing
+//                           ("current" = ask now, "future" = plan ahead), .why
+//                           (why it matters) and .risk.
+//       .children[]         Level-2 clarifiers; each Level-2 has its Level-3.
 //
-// Neutral questions only — no answers, laws or advice; the AI layer personalizes.
+// The model (per Moisha): the parent drills L1 -> pick an L2 -> L3, and THEN the
+// AI layer answers, using the child's profile + the exact question reached.
+// The database is neutral questions only — no laws, providers, or answers.
 
-const GPS_STAGES = [
+const GPS_MILESTONES = [
   {
-    "id": "s1",
-    "emoji": "👶",
-    "label": "Ages 1–3",
-    "sub": "Early years",
-    "ageKey": "1-3",
-    "minAge": 0,
-    "maxAge": 3,
-    "description": "The early years — first questions about diagnosis, routines and support.",
-    "categories": [
-      {
-        "name": "Medical",
-        "emoji": "🩺",
-        "questions": [
-          {
-            "id": "s1-medical-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What is the best Diagnosis Code to optimize future services?"
-          },
-          {
-            "id": "s1-medical-2",
-            "level": 2,
-            "timing": "future",
-            "text": "Are there other Medical Conditions that I need to look for?"
-          },
-          {
-            "id": "s1-medical-3",
-            "level": 2,
-            "timing": "current",
-            "text": "Which Doctor should I talk to?"
-          },
-          {
-            "id": "s1-medical-4",
-            "level": 2,
-            "timing": "future",
-            "text": "I'm concerned that my child may have autism, should I seek a diagnosis?"
-          },
-          {
-            "id": "s1-medical-5",
-            "level": 2,
-            "timing": "future",
-            "text": "What is the best Diagnosis Code to optimize funding for future services?"
-          }
-        ]
-      },
-      {
-        "name": "Therapy",
-        "emoji": "🧠",
-        "questions": [
-          {
-            "id": "s1-therapy-1",
-            "level": 1,
-            "timing": "current",
-            "text": "Do I need Early intervention?"
-          },
-          {
-            "id": "s1-therapy-2",
-            "level": 2,
-            "timing": "current",
-            "text": "What are the most important therapies?"
-          },
-          {
-            "id": "s1-therapy-3",
-            "level": 2,
-            "timing": "current",
-            "text": "What are the pros/cons on therapies methods"
-          },
-          {
-            "id": "s1-therapy-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Is the Therapy legitimate?"
-          }
-        ]
-      },
-      {
-        "name": "Finance",
-        "emoji": "💰",
-        "questions": [
-          {
-            "id": "s1-finance-1",
-            "level": 1,
-            "timing": "future",
-            "text": "Who will pay for Early Intervention"
-          },
-          {
-            "id": "s1-finance-2",
-            "level": 2,
-            "timing": "future",
-            "text": "Who will pay for therapies"
-          },
-          {
-            "id": "s1-finance-3",
-            "level": 2,
-            "timing": "current",
-            "text": "What other costs /income should I consider"
-          }
-        ]
-      },
-      {
-        "name": "Legal",
-        "emoji": "⚖️",
-        "questions": [
-          {
-            "id": "s1-legal-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are my rights?"
-          },
-          {
-            "id": "s1-legal-2",
-            "level": 2,
-            "timing": "current",
-            "text": "in my hometown"
-          },
-          {
-            "id": "s1-legal-3",
-            "level": 2,
-            "timing": "current",
-            "text": "in my county"
-          },
-          {
-            "id": "s1-legal-4",
-            "level": 2,
-            "timing": "current",
-            "text": "in my state"
-          },
-          {
-            "id": "s1-legal-5",
-            "level": 2,
-            "timing": "current",
-            "text": "In my country"
-          },
-          {
-            "id": "s1-legal-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What other legal steps I should take to protect my child's future?"
-          }
-        ]
-      },
-      {
-        "name": "Daily Life",
-        "emoji": "🗓️",
-        "questions": [
-          {
-            "id": "s1-dailylife-1",
-            "level": 1,
-            "timing": "future",
-            "text": "my life changed. What should I plan for?"
-          },
-          {
-            "id": "s1-dailylife-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Day routine"
-          },
-          {
-            "id": "s1-dailylife-3",
-            "level": 2,
-            "timing": "current",
-            "text": "Night Routine"
-          },
-          {
-            "id": "s1-dailylife-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Week"
-          },
-          {
-            "id": "s1-dailylife-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Month"
-          },
-          {
-            "id": "s1-dailylife-6",
-            "level": 2,
-            "timing": "current",
-            "text": "Year"
-          },
-          {
-            "id": "s1-dailylife-7",
-            "level": 2,
-            "timing": "current",
-            "text": "Weekend"
-          },
-          {
-            "id": "s1-dailylife-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Holidays"
-          },
-          {
-            "id": "s1-dailylife-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Birthday"
-          },
-          {
-            "id": "s1-dailylife-10",
-            "level": 2,
-            "timing": "current",
-            "text": "Vacation"
-          },
-          {
-            "id": "s1-dailylife-11",
-            "level": 2,
-            "timing": "future",
-            "text": "Next stage"
-          }
-        ]
-      },
-      {
-        "name": "Family",
-        "emoji": "👪",
-        "questions": [
-          {
-            "id": "s1-family-1",
-            "level": 1,
-            "timing": "future",
-            "text": "what should I Expect?"
-          },
-          {
-            "id": "s1-family-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Parents"
-          },
-          {
-            "id": "s1-family-3",
-            "level": 2,
-            "timing": "current",
-            "text": "sibling"
-          },
-          {
-            "id": "s1-family-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Grandparents"
-          },
-          {
-            "id": "s1-family-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Extended Family"
-          },
-          {
-            "id": "s1-family-6",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do with regard to:"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "s2",
-    "emoji": "🧒",
-    "label": "Ages 4–8",
-    "sub": "Childhood",
-    "ageKey": "4-8",
-    "minAge": 4,
+    "id": "diagnosis",
+    "emoji": "🧩",
+    "label": "Diagnosis",
+    "ageLabel": "Ages 2–8",
+    "isTrigger": false,
+    "startAge": 2,
+    "endAge": 8,
     "maxAge": 8,
-    "description": "Building daily routines, therapies and the first school steps.",
-    "categories": [
+    "super": false,
+    "domain": "Medical / Services",
+    "description": "Getting a clear picture — the diagnosis shapes every service, support and plan that follows.",
+    "questions": [
       {
-        "name": "Medical",
-        "emoji": "🩺",
-        "questions": [
+        "id": "P001",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "Does the current diagnostic picture accurately explain my child's strengths, challenges, and support needs?",
+        "why": "A clear diagnostic picture helps the family ask better questions about supports, services, communication, education, and future planning.",
+        "children": [
           {
-            "id": "s2-medical-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What is my medical routine?"
-          },
-          {
-            "id": "s2-medical-2",
+            "id": "P002",
             "level": 2,
             "timing": "current",
-            "text": "Does my child's medical routine need to be different"
+            "risk": "high",
+            "text": "What evaluations have already been completed?",
+            "why": "A clear diagnostic picture helps the family ask better questions about supports, services, communication, education, and future planning.",
+            "children": [
+              {
+                "id": "P003",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What areas of functioning remain unclear?"
+              }
+            ]
           },
           {
-            "id": "s2-medical-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from my doctor"
-          },
-          {
-            "id": "s2-medical-4",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I ask/tell my doctor"
-          },
-          {
-            "id": "s2-medical-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Which Doctor should I talk to?"
-          },
-          {
-            "id": "s2-medical-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What medical situation(s) should I expect?"
-          },
-          {
-            "id": "s2-medical-7",
+            "id": "P004",
             "level": 2,
             "timing": "current",
-            "text": "What do I do in case of a medical emergency?"
-          },
-          {
-            "id": "s2-medical-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I consider medications/supplements?"
-          },
-          {
-            "id": "s2-medical-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Why is my child not speaking?"
-          },
-          {
-            "id": "s2-medical-10",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do about my child not speaking?"
+            "risk": "high",
+            "text": "Are co-occurring needs being considered?",
+            "why": "A clear diagnostic picture helps the family ask better questions about supports, services, communication, education, and future planning.",
+            "children": [
+              {
+                "id": "P005",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What needs are not yet explained by the current diagnosis?"
+              }
+            ]
           }
         ]
       },
       {
-        "name": "Therapy",
-        "emoji": "🧠",
-        "questions": [
+        "id": "P006",
+        "level": 1,
+        "timing": "future",
+        "risk": "critical",
+        "text": "Which diagnosis or combination of diagnoses may best support my child's long-term quality of life and access to appropriate services?",
+        "why": "The GPS should help families think beyond labels toward long-term access, opportunity, and quality of life.",
+        "children": [
           {
-            "id": "s2-therapy-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are the most important therapies at this age?"
-          }
-        ]
-      },
-      {
-        "name": "Education",
-        "emoji": "📚",
-        "questions": [
-          {
-            "id": "s2-education-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What day care I should look for"
-          }
-        ]
-      },
-      {
-        "name": "Finance",
-        "emoji": "💰",
-        "questions": [
-          {
-            "id": "s2-finance-1",
-            "level": 1,
-            "timing": "future",
-            "text": "Who will pay for education?"
-          },
-          {
-            "id": "s2-finance-2",
+            "id": "P007",
             "level": 2,
             "timing": "future",
-            "text": "Who will pay for therapies"
+            "risk": "high",
+            "text": "How could the diagnosis affect service access now?",
+            "why": "The GPS should help families think beyond labels toward long-term access, opportunity, and quality of life.",
+            "children": [
+              {
+                "id": "P008",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "How could the diagnosis affect adult-service planning later?"
+              }
+            ]
           },
           {
-            "id": "s2-finance-3",
-            "level": 2,
-            "timing": "current",
-            "text": "What other cost/income I should consider"
-          }
-        ]
-      },
-      {
-        "name": "Legal",
-        "emoji": "⚖️",
-        "questions": [
-          {
-            "id": "s2-legal-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are my rights?"
-          },
-          {
-            "id": "s2-legal-2",
-            "level": 2,
-            "timing": "current",
-            "text": "in my hometown"
-          },
-          {
-            "id": "s2-legal-3",
-            "level": 2,
-            "timing": "current",
-            "text": "in my county"
-          },
-          {
-            "id": "s2-legal-4",
-            "level": 2,
-            "timing": "current",
-            "text": "in my state"
-          },
-          {
-            "id": "s2-legal-5",
-            "level": 2,
-            "timing": "current",
-            "text": "In my country"
-          },
-          {
-            "id": "s2-legal-6",
+            "id": "P009",
             "level": 2,
             "timing": "future",
-            "text": "What other legal steps I should take to protect my child's future?"
-          }
-        ]
-      },
-      {
-        "name": "Daily Life",
-        "emoji": "🗓️",
-        "questions": [
-          {
-            "id": "s2-dailylife-1",
-            "level": 1,
-            "timing": "future",
-            "text": "my life changed. What should I plan for?"
-          },
-          {
-            "id": "s2-dailylife-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Day routine"
-          },
-          {
-            "id": "s2-dailylife-3",
-            "level": 2,
-            "timing": "current",
-            "text": "Night Routine"
-          },
-          {
-            "id": "s2-dailylife-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Week"
-          },
-          {
-            "id": "s2-dailylife-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Month"
-          },
-          {
-            "id": "s2-dailylife-6",
-            "level": 2,
-            "timing": "current",
-            "text": "Year"
-          },
-          {
-            "id": "s2-dailylife-7",
-            "level": 2,
-            "timing": "current",
-            "text": "Weekend"
-          },
-          {
-            "id": "s2-dailylife-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Holidays"
-          },
-          {
-            "id": "s2-dailylife-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Birthday"
-          },
-          {
-            "id": "s2-dailylife-10",
-            "level": 2,
-            "timing": "current",
-            "text": "Vacation"
-          },
-          {
-            "id": "s2-dailylife-11",
-            "level": 2,
-            "timing": "future",
-            "text": "Next stage"
-          }
-        ]
-      },
-      {
-        "name": "Family",
-        "emoji": "👪",
-        "questions": [
-          {
-            "id": "s2-family-1",
-            "level": 1,
-            "timing": "future",
-            "text": "what should I Expect?"
-          },
-          {
-            "id": "s2-family-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Parents"
-          },
-          {
-            "id": "s2-family-3",
-            "level": 2,
-            "timing": "current",
-            "text": "sibling"
-          },
-          {
-            "id": "s2-family-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Grandparents"
-          },
-          {
-            "id": "s2-family-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Extended Family"
-          },
-          {
-            "id": "s2-family-6",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do with regard to:"
-          }
-        ]
-      },
-      {
-        "name": "Crisis Management",
-        "emoji": "🚨",
-        "questions": [
-          {
-            "id": "s2-crisismanagement-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What crisis I should expect?"
-          },
-          {
-            "id": "s2-crisismanagement-2",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do in case of crisis?"
+            "risk": "high",
+            "text": "Are there labels that could create unintended barriers?",
+            "why": "The GPS should help families think beyond labels toward long-term access, opportunity, and quality of life.",
+            "children": [
+              {
+                "id": "P010",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What long-term assumptions might follow from each label?"
+              }
+            ]
           }
         ]
       }
     ]
   },
   {
-    "id": "s3",
-    "emoji": "🧑",
-    "label": "Ages 9–13",
-    "sub": "Pre-teen",
-    "ageKey": "9-13",
-    "minAge": 9,
-    "maxAge": 13,
-    "description": "School, communication and planning for the stage ahead.",
-    "categories": [
+    "id": "iep-readiness-advocacy",
+    "emoji": "📋",
+    "label": "IEP Readiness & Advocacy",
+    "ageLabel": "Preschool–age 20",
+    "isTrigger": false,
+    "startAge": 3,
+    "endAge": 20,
+    "maxAge": 20,
+    "super": false,
+    "domain": "Education",
+    "description": "The IEP is the main planning tool through childhood — it should tie school supports to real outcomes.",
+    "questions": [
       {
-        "name": "Medical",
-        "emoji": "🩺",
-        "questions": [
+        "id": "P011",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "Does the current IEP reflect the child's real needs, strengths, and family priorities?",
+        "why": "The IEP is often the main planning tool during childhood and should connect daily school supports to meaningful outcomes.",
+        "children": [
           {
-            "id": "s3-medical-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What is my medical routine?"
-          },
-          {
-            "id": "s3-medical-2",
+            "id": "P012",
             "level": 2,
             "timing": "current",
-            "text": "Does my child's medical routine need to be different"
+            "risk": "high",
+            "text": "Are the goals measurable and meaningful?",
+            "why": "The IEP is often the main planning tool during childhood and should connect daily school supports to meaningful outcomes.",
+            "children": [
+              {
+                "id": "P013",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "Which goals will still matter five years from now?"
+              }
+            ]
           },
           {
-            "id": "s3-medical-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from my doctor"
-          },
-          {
-            "id": "s3-medical-4",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I ask/tell my doctor"
-          },
-          {
-            "id": "s3-medical-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Which Doctor should I talk to?"
-          },
-          {
-            "id": "s3-medical-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What medical situation(s) should I expect?"
-          },
-          {
-            "id": "s3-medical-7",
+            "id": "P014",
             "level": 2,
             "timing": "current",
-            "text": "What do I do in case of a medical emergency?"
-          },
-          {
-            "id": "s3-medical-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I consider medications/supplements?"
-          },
-          {
-            "id": "s3-medical-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Why is my child not speaking?"
-          },
-          {
-            "id": "s3-medical-10",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do about my child not speaking?"
-          },
-          {
-            "id": "s3-medical-11",
-            "level": 2,
-            "timing": "current",
-            "text": "My child do sleep well. What can I do?"
+            "risk": "high",
+            "text": "Are services aligned with the child's needs?",
+            "why": "The IEP is often the main planning tool during childhood and should connect daily school supports to meaningful outcomes.",
+            "children": [
+              {
+                "id": "P015",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "Which supports are missing or no longer working?"
+              }
+            ]
           }
         ]
       },
       {
-        "name": "Therapy",
-        "emoji": "🧠",
-        "questions": [
+        "id": "P016",
+        "level": 1,
+        "timing": "future",
+        "risk": "critical",
+        "text": "Is the IEP preparing the child for the next educational stage and ultimately adulthood?",
+        "why": "Each school year should build skills for the next transition, not only address the current placement.",
+        "children": [
           {
-            "id": "s3-therapy-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are the most important therapies at this age?"
-          },
-          {
-            "id": "s3-therapy-2",
+            "id": "P017",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative therapies"
+            "risk": "high",
+            "text": "What transition is coming next?",
+            "why": "Each school year should build skills for the next transition, not only address the current placement.",
+            "children": [
+              {
+                "id": "P018",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What skills will be needed for that next transition?"
+              }
+            ]
           },
           {
-            "id": "s3-therapy-3",
+            "id": "P019",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative support"
-          }
-        ]
-      },
-      {
-        "name": "Education",
-        "emoji": "📚",
-        "questions": [
-          {
-            "id": "s3-education-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What elementary school should I look for?"
-          },
-          {
-            "id": "s3-education-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I seek additional home education?"
-          },
-          {
-            "id": "s3-education-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from schools?"
-          },
-          {
-            "id": "s3-education-4",
-            "level": 2,
-            "timing": "future",
-            "text": "What should expect from my child?"
-          },
-          {
-            "id": "s3-education-5",
-            "level": 2,
-            "timing": "future",
-            "text": "How do I plan education now and for next stage?"
-          },
-          {
-            "id": "s3-education-6",
-            "level": 2,
-            "timing": "current",
-            "text": "How do I communicate my child's needs"
-          }
-        ]
-      },
-      {
-        "name": "Finance",
-        "emoji": "💰",
-        "questions": [
-          {
-            "id": "s3-finance-1",
-            "level": 1,
-            "timing": "future",
-            "text": "Who will pay for education?"
-          },
-          {
-            "id": "s3-finance-2",
-            "level": 2,
-            "timing": "future",
-            "text": "Who will pay for therapies"
-          },
-          {
-            "id": "s3-finance-3",
-            "level": 2,
-            "timing": "current",
-            "text": "What other cost/income I should consider"
-          }
-        ]
-      },
-      {
-        "name": "Legal",
-        "emoji": "⚖️",
-        "questions": [
-          {
-            "id": "s3-legal-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are my rights?"
-          },
-          {
-            "id": "s3-legal-2",
-            "level": 2,
-            "timing": "current",
-            "text": "in my hometown"
-          },
-          {
-            "id": "s3-legal-3",
-            "level": 2,
-            "timing": "current",
-            "text": "in my county"
-          },
-          {
-            "id": "s3-legal-4",
-            "level": 2,
-            "timing": "current",
-            "text": "in my state"
-          },
-          {
-            "id": "s3-legal-5",
-            "level": 2,
-            "timing": "current",
-            "text": "In my country"
-          },
-          {
-            "id": "s3-legal-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What other legal steps I should take to protect my child's future?"
-          }
-        ]
-      },
-      {
-        "name": "Daily Life",
-        "emoji": "🗓️",
-        "questions": [
-          {
-            "id": "s3-dailylife-1",
-            "level": 1,
-            "timing": "future",
-            "text": "my life changed. What should I plan for?"
-          },
-          {
-            "id": "s3-dailylife-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Day routine"
-          },
-          {
-            "id": "s3-dailylife-3",
-            "level": 2,
-            "timing": "current",
-            "text": "Night Routine"
-          },
-          {
-            "id": "s3-dailylife-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Week"
-          },
-          {
-            "id": "s3-dailylife-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Month"
-          },
-          {
-            "id": "s3-dailylife-6",
-            "level": 2,
-            "timing": "current",
-            "text": "Year"
-          },
-          {
-            "id": "s3-dailylife-7",
-            "level": 2,
-            "timing": "current",
-            "text": "Weekend"
-          },
-          {
-            "id": "s3-dailylife-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Holidays"
-          },
-          {
-            "id": "s3-dailylife-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Birthday"
-          },
-          {
-            "id": "s3-dailylife-10",
-            "level": 2,
-            "timing": "current",
-            "text": "Vacation"
-          },
-          {
-            "id": "s3-dailylife-11",
-            "level": 2,
-            "timing": "future",
-            "text": "Next stage"
-          }
-        ]
-      },
-      {
-        "name": "Family",
-        "emoji": "👪",
-        "questions": [
-          {
-            "id": "s3-family-1",
-            "level": 1,
-            "timing": "future",
-            "text": "what should I Expect?"
-          },
-          {
-            "id": "s3-family-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Parents"
-          },
-          {
-            "id": "s3-family-3",
-            "level": 2,
-            "timing": "current",
-            "text": "sibling"
-          },
-          {
-            "id": "s3-family-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Grandparents"
-          },
-          {
-            "id": "s3-family-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Extended Family"
-          },
-          {
-            "id": "s3-family-6",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do with regard to:"
-          }
-        ]
-      },
-      {
-        "name": "Crisis Management",
-        "emoji": "🚨",
-        "questions": [
-          {
-            "id": "s3-crisismanagement-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What crisis I should expect?"
-          },
-          {
-            "id": "s3-crisismanagement-2",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do in case of crisis?"
+            "risk": "high",
+            "text": "Are independence and communication goals being built early enough?",
+            "why": "Each school year should build skills for the next transition, not only address the current placement.",
+            "children": [
+              {
+                "id": "P020",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "Which adult-life skills should begin before age 20?"
+              }
+            ]
           }
         ]
       }
     ]
   },
   {
-    "id": "s4",
-    "emoji": "🧑‍🎓",
-    "label": "Ages 14–17",
-    "sub": "Teen years",
-    "ageKey": "14-17",
-    "minAge": 14,
+    "id": "puberty",
+    "emoji": "🌱",
+    "label": "Puberty",
+    "ageLabel": "When puberty appears",
+    "isTrigger": true,
+    "startAge": 11,
+    "endAge": 17,
     "maxAge": 17,
-    "description": "Teenage changes, education choices and preparing for transition.",
-    "categories": [
+    "super": false,
+    "domain": "Health / Safety / Daily Life",
+    "description": "Not tied to a fixed age. Puberty can change support, safety and communication needs quickly.",
+    "questions": [
       {
-        "name": "Medical",
-        "emoji": "🩺",
-        "questions": [
+        "id": "P021",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "Are physical, emotional, sensory, and behavioral changes related to puberty being recognized and supported?",
+        "why": "Puberty can change support needs quickly and may affect safety, communication, hygiene, anxiety, and participation.",
+        "children": [
           {
-            "id": "s4-medical-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What is my medical routine?"
-          },
-          {
-            "id": "s4-medical-2",
+            "id": "P022",
             "level": 2,
             "timing": "current",
-            "text": "Does my child's medical routine need to be different"
+            "risk": "high",
+            "text": "What changes are we noticing at home or school?",
+            "why": "Puberty can change support needs quickly and may affect safety, communication, hygiene, anxiety, and participation.",
+            "children": [
+              {
+                "id": "P023",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "Which changes may require new supports?"
+              }
+            ]
           },
           {
-            "id": "s4-medical-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from my doctor"
-          },
-          {
-            "id": "s4-medical-4",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I ask/tell my doctor"
-          },
-          {
-            "id": "s4-medical-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Which Doctor should I talk to?"
-          },
-          {
-            "id": "s4-medical-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What medical situation(s) should I expect?"
-          },
-          {
-            "id": "s4-medical-7",
+            "id": "P024",
             "level": 2,
             "timing": "current",
-            "text": "What do I do in case of a medical emergency?"
-          },
-          {
-            "id": "s4-medical-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I consider medications/supplements?"
-          },
-          {
-            "id": "s4-medical-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Why is my child not speaking?"
-          },
-          {
-            "id": "s4-medical-10",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do about my child not speaking?"
-          },
-          {
-            "id": "s4-medical-11",
-            "level": 2,
-            "timing": "current",
-            "text": "My child do sleep well. What can I do?"
+            "risk": "high",
+            "text": "Can the individual communicate discomfort or confusion?",
+            "why": "Puberty can change support needs quickly and may affect safety, communication, hygiene, anxiety, and participation.",
+            "children": [
+              {
+                "id": "P025",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What communication supports are needed around body changes?"
+              }
+            ]
           }
         ]
       },
       {
-        "name": "Therapy",
-        "emoji": "🧠",
-        "questions": [
+        "id": "P026",
+        "level": 1,
+        "timing": "future",
+        "risk": "critical",
+        "text": "Are we preparing for privacy, relationships, body safety, and independence during and after puberty?",
+        "why": "Families often need proactive questions before safety, privacy, or relationship concerns become urgent.",
+        "children": [
           {
-            "id": "s4-therapy-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are the most important therapies at this age?"
-          },
-          {
-            "id": "s4-therapy-2",
+            "id": "P027",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative therapies"
+            "risk": "high",
+            "text": "Has privacy been taught in a way the individual understands?",
+            "why": "Families often need proactive questions before safety, privacy, or relationship concerns become urgent.",
+            "children": [
+              {
+                "id": "P028",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What privacy routines need to be practiced?"
+              }
+            ]
           },
           {
-            "id": "s4-therapy-3",
+            "id": "P029",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative support"
-          }
-        ]
-      },
-      {
-        "name": "Education",
-        "emoji": "📚",
-        "questions": [
-          {
-            "id": "s4-education-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What Middle school I should look for?"
-          },
-          {
-            "id": "s4-education-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I have additional home education?"
-          },
-          {
-            "id": "s4-education-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from schools?"
-          },
-          {
-            "id": "s4-education-4",
-            "level": 2,
-            "timing": "future",
-            "text": "What should expect from my child?"
-          },
-          {
-            "id": "s4-education-5",
-            "level": 2,
-            "timing": "future",
-            "text": "How do I plan education now and for next stage?"
-          },
-          {
-            "id": "s4-education-6",
-            "level": 2,
-            "timing": "current",
-            "text": "How do I communicate my child's needs"
-          }
-        ]
-      },
-      {
-        "name": "Finance",
-        "emoji": "💰",
-        "questions": [
-          {
-            "id": "s4-finance-1",
-            "level": 1,
-            "timing": "future",
-            "text": "Who will pay for education?"
-          },
-          {
-            "id": "s4-finance-2",
-            "level": 2,
-            "timing": "future",
-            "text": "Who will pay for therapies?"
-          },
-          {
-            "id": "s4-finance-3",
-            "level": 2,
-            "timing": "current",
-            "text": "What other cost/income I should consider"
-          }
-        ]
-      },
-      {
-        "name": "Legal",
-        "emoji": "⚖️",
-        "questions": [
-          {
-            "id": "s4-legal-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are my rights?"
-          },
-          {
-            "id": "s4-legal-2",
-            "level": 2,
-            "timing": "current",
-            "text": "in my hometown"
-          },
-          {
-            "id": "s4-legal-3",
-            "level": 2,
-            "timing": "current",
-            "text": "in my county"
-          },
-          {
-            "id": "s4-legal-4",
-            "level": 2,
-            "timing": "current",
-            "text": "in my state"
-          },
-          {
-            "id": "s4-legal-5",
-            "level": 2,
-            "timing": "current",
-            "text": "In my country"
-          },
-          {
-            "id": "s4-legal-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What other legal steps I should take to protect my child's future?"
-          }
-        ]
-      },
-      {
-        "name": "Daily Life",
-        "emoji": "🗓️",
-        "questions": [
-          {
-            "id": "s4-dailylife-1",
-            "level": 1,
-            "timing": "future",
-            "text": "my life changed. What should I plan for?"
-          },
-          {
-            "id": "s4-dailylife-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Day routine"
-          },
-          {
-            "id": "s4-dailylife-3",
-            "level": 2,
-            "timing": "current",
-            "text": "Night Routine"
-          },
-          {
-            "id": "s4-dailylife-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Week"
-          },
-          {
-            "id": "s4-dailylife-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Month"
-          },
-          {
-            "id": "s4-dailylife-6",
-            "level": 2,
-            "timing": "current",
-            "text": "Year"
-          },
-          {
-            "id": "s4-dailylife-7",
-            "level": 2,
-            "timing": "current",
-            "text": "Weekend"
-          },
-          {
-            "id": "s4-dailylife-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Holidays"
-          },
-          {
-            "id": "s4-dailylife-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Birthday"
-          },
-          {
-            "id": "s4-dailylife-10",
-            "level": 2,
-            "timing": "current",
-            "text": "Vacation"
-          },
-          {
-            "id": "s4-dailylife-11",
-            "level": 2,
-            "timing": "future",
-            "text": "Next stage"
-          }
-        ]
-      },
-      {
-        "name": "Family",
-        "emoji": "👪",
-        "questions": [
-          {
-            "id": "s4-family-1",
-            "level": 1,
-            "timing": "future",
-            "text": "what should I Expect?"
-          },
-          {
-            "id": "s4-family-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Parents"
-          },
-          {
-            "id": "s4-family-3",
-            "level": 2,
-            "timing": "current",
-            "text": "sibling"
-          },
-          {
-            "id": "s4-family-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Grandparents"
-          },
-          {
-            "id": "s4-family-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Extended Family"
-          },
-          {
-            "id": "s4-family-6",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do with regard to:"
-          }
-        ]
-      },
-      {
-        "name": "Crisis Management",
-        "emoji": "🚨",
-        "questions": [
-          {
-            "id": "s4-crisismanagement-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What crisis I should expect?"
-          },
-          {
-            "id": "s4-crisismanagement-2",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do in case of crisis?"
+            "risk": "high",
+            "text": "Has body safety been addressed appropriately?",
+            "why": "Families often need proactive questions before safety, privacy, or relationship concerns become urgent.",
+            "children": [
+              {
+                "id": "P030",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "How will the individual report discomfort, fear, or unsafe situations?"
+              }
+            ]
           }
         ]
       }
     ]
   },
   {
-    "id": "s5",
-    "emoji": "🎓",
-    "label": "Ages 18–21",
-    "sub": "Transition",
-    "ageKey": "18-21",
-    "minAge": 18,
+    "id": "high-school-planning",
+    "emoji": "🎒",
+    "label": "High School Planning",
+    "ageLabel": "Ages 15–17",
+    "isTrigger": false,
+    "startAge": 15,
+    "endAge": 17,
+    "maxAge": 17,
+    "super": false,
+    "domain": "Education / Employment",
+    "description": "The key window to test interests and build a practical bridge toward adult life.",
+    "questions": [
+      {
+        "id": "P031",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "Is high school being used to identify strengths, interests, and possible adult pathways?",
+        "why": "High school is the key window to test interests and build a practical bridge to adult life.",
+        "children": [
+          {
+            "id": "P032",
+            "level": 2,
+            "timing": "current",
+            "risk": "high",
+            "text": "What strengths are becoming clear?",
+            "why": "High school is the key window to test interests and build a practical bridge to adult life.",
+            "children": [
+              {
+                "id": "P033",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "Which environments help those strengths appear?"
+              }
+            ]
+          },
+          {
+            "id": "P034",
+            "level": 2,
+            "timing": "current",
+            "risk": "high",
+            "text": "Has vocational or community exposure begun?",
+            "why": "High school is the key window to test interests and build a practical bridge to adult life.",
+            "children": [
+              {
+                "id": "P035",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What experiences should be tried before age 18?"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "P036",
+        "level": 1,
+        "timing": "future",
+        "risk": "critical",
+        "text": "Is the school plan building toward employment, contribution, higher education, or meaningful daytime activity after age 21?",
+        "why": "A diploma or school placement is not enough; families need a post-school life plan.",
+        "children": [
+          {
+            "id": "P037",
+            "level": 2,
+            "timing": "future",
+            "risk": "high",
+            "text": "What adult pathway is most realistic today?",
+            "why": "A diploma or school placement is not enough; families need a post-school life plan.",
+            "children": [
+              {
+                "id": "P038",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What alternative pathway should also be explored?"
+              }
+            ]
+          },
+          {
+            "id": "P039",
+            "level": 2,
+            "timing": "future",
+            "risk": "high",
+            "text": "What barriers could prevent post-school success?",
+            "why": "A diploma or school placement is not enough; families need a post-school life plan.",
+            "children": [
+              {
+                "id": "P040",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "Which barriers should be reduced before age 18?"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "adult-readiness-post-21-preparation",
+    "emoji": "🧭",
+    "label": "Adult Readiness & Post-21 Preparation",
+    "ageLabel": "Ages 16–20",
+    "isTrigger": false,
+    "startAge": 16,
+    "endAge": 20,
+    "maxAge": 20,
+    "super": true,
+    "domain": "Legal / Benefits / Finance / Life Plan",
+    "description": "The transition super-milestone — legal, benefits, finance and life plan, before school services end.",
+    "questions": [
+      {
+        "id": "P041",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "What steps should I take today to maximize my child's quality of life and my family's quality of life after age 21?",
+        "why": "The transition years determine whether adulthood begins with a plan or with a crisis after school services end.",
+        "children": [
+          {
+            "id": "P042",
+            "level": 2,
+            "timing": "current",
+            "risk": "high",
+            "text": "What does a good adult life look like for my child?",
+            "why": "The transition years determine whether adulthood begins with a plan or with a crisis after school services end.",
+            "children": [
+              {
+                "id": "P043",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What outcomes would show quality of life at age 25?"
+              }
+            ]
+          },
+          {
+            "id": "P044",
+            "level": 2,
+            "timing": "current",
+            "risk": "high",
+            "text": "What does a sustainable family life look like after age 21?",
+            "why": "The transition years determine whether adulthood begins with a plan or with a crisis after school services end.",
+            "children": [
+              {
+                "id": "P045",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What family stress points must be reduced before school ends?"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "P046",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "What steps should I take to prepare all legal requirements before age 21?",
+        "why": "Legal responsibility changes in adulthood, and families need to understand decision-making supports before urgent decisions arise.",
+        "children": [
+          {
+            "id": "P047",
+            "level": 2,
+            "timing": "current",
+            "risk": "high",
+            "text": "What decisions will my child be expected to make at age 18?",
+            "why": "Legal responsibility changes in adulthood, and families need to understand decision-making supports before urgent decisions arise.",
+            "children": [
+              {
+                "id": "P048",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "Which decisions may require support?"
+              }
+            ]
+          },
+          {
+            "id": "P049",
+            "level": 2,
+            "timing": "current",
+            "risk": "high",
+            "text": "Who should be involved in decision-making planning?",
+            "why": "Legal responsibility changes in adulthood, and families need to understand decision-making supports before urgent decisions arise.",
+            "children": [
+              {
+                "id": "P050",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What safeguards are needed while preserving autonomy?"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "P051",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "What steps should I take to connect my child to Medicaid and my state's adult service system?",
+        "why": "Many adult supports depend on eligibility pathways, applications, documentation, and timing.",
+        "children": [
+          {
+            "id": "P052",
+            "level": 2,
+            "timing": "current",
+            "risk": "high",
+            "text": "What adult services may be needed after age 21?",
+            "why": "Many adult supports depend on eligibility pathways, applications, documentation, and timing.",
+            "children": [
+              {
+                "id": "P053",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "Which of those services require eligibility steps before age 21?"
+              }
+            ]
+          },
+          {
+            "id": "P054",
+            "level": 2,
+            "timing": "current",
+            "risk": "high",
+            "text": "What documentation should be organized now?",
+            "why": "Many adult supports depend on eligibility pathways, applications, documentation, and timing.",
+            "children": [
+              {
+                "id": "P055",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What applications or waiting lists may affect timing?"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "P056",
+        "level": 1,
+        "timing": "future",
+        "risk": "critical",
+        "text": "What financial steps should I take before my child turns 21?",
+        "why": "Financial planning affects housing, services, benefits, caregiving, and long-term family stability.",
+        "children": [
+          {
+            "id": "P057",
+            "level": 2,
+            "timing": "future",
+            "risk": "high",
+            "text": "What future expenses should we anticipate?",
+            "why": "Financial planning affects housing, services, benefits, caregiving, and long-term family stability.",
+            "children": [
+              {
+                "id": "P058",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "Which costs may increase after school services end?"
+              }
+            ]
+          },
+          {
+            "id": "P059",
+            "level": 2,
+            "timing": "future",
+            "risk": "high",
+            "text": "How should family finances align with benefits and long-term support needs?",
+            "why": "Financial planning affects housing, services, benefits, caregiving, and long-term family stability.",
+            "children": [
+              {
+                "id": "P060",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What financial decisions could affect future eligibility or security?"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "t1-cliff",
+    "emoji": "⛰️",
+    "label": "T1 Cliff",
+    "ageLabel": "Age 21 · school exit",
+    "isTrigger": false,
+    "startAge": 21,
+    "endAge": 21,
     "maxAge": 21,
-    "description": "The move toward adulthood — legal, financial and life planning.",
-    "categories": [
+    "super": false,
+    "domain": "Adult Services / Daily Life",
+    "description": "When school ends, hidden school-based supports disappear. What replaces them?",
+    "questions": [
       {
-        "name": "Medical",
-        "emoji": "🩺",
-        "questions": [
+        "id": "P061",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "What services, routines, therapies, and supports ended when school ended?",
+        "why": "The T1 Cliff exposes gaps that were previously hidden by the school system.",
+        "children": [
           {
-            "id": "s5-medical-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What is my medical routine?"
-          },
-          {
-            "id": "s5-medical-2",
+            "id": "P062",
             "level": 2,
             "timing": "current",
-            "text": "Does my child's medical routine need to be different"
+            "risk": "high",
+            "text": "Which supports were school-based?",
+            "why": "The T1 Cliff exposes gaps that were previously hidden by the school system.",
+            "children": [
+              {
+                "id": "P063",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "Which school-based supports have no replacement yet?"
+              }
+            ]
           },
           {
-            "id": "s5-medical-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from my doctor"
-          },
-          {
-            "id": "s5-medical-4",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I ask/tell my doctor"
-          },
-          {
-            "id": "s5-medical-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Which Doctor should I talk to?"
-          },
-          {
-            "id": "s5-medical-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What medical situation(s) should I expect?"
-          },
-          {
-            "id": "s5-medical-7",
+            "id": "P064",
             "level": 2,
             "timing": "current",
-            "text": "What do I do in case of a medical emergency?"
-          },
-          {
-            "id": "s5-medical-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I consider medications/supplements?"
-          },
-          {
-            "id": "s5-medical-9",
-            "level": 2,
-            "timing": "future",
-            "text": "How will puberty affect my child?"
-          },
-          {
-            "id": "s5-medical-10",
-            "level": 2,
-            "timing": "future",
-            "text": "Should I expect other medical conditions?"
-          },
-          {
-            "id": "s5-medical-11",
-            "level": 2,
-            "timing": "current",
-            "text": "My child do sleep well. What can I do?"
+            "risk": "high",
+            "text": "What changed in the weekly schedule?",
+            "why": "The T1 Cliff exposes gaps that were previously hidden by the school system.",
+            "children": [
+              {
+                "id": "P065",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "Where are the biggest gaps in the week?"
+              }
+            ]
           }
         ]
       },
       {
-        "name": "Therapy",
-        "emoji": "🧠",
-        "questions": [
+        "id": "P066",
+        "level": 1,
+        "timing": "future",
+        "risk": "critical",
+        "text": "What structure, services, and supports must replace the school-based system after age 21?",
+        "why": "A meaningful adult life requires a new structure for daily activity, relationships, health, and support coordination.",
+        "children": [
           {
-            "id": "s5-therapy-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are the most important therapies at this age?"
-          },
-          {
-            "id": "s5-therapy-2",
+            "id": "P067",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative therapies"
+            "risk": "high",
+            "text": "What does a meaningful week look like now?",
+            "why": "A meaningful adult life requires a new structure for daily activity, relationships, health, and support coordination.",
+            "children": [
+              {
+                "id": "P068",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What should the week look like one year from now?"
+              }
+            ]
           },
           {
-            "id": "s5-therapy-3",
+            "id": "P069",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative support"
-          }
-        ]
-      },
-      {
-        "name": "Education",
-        "emoji": "📚",
-        "questions": [
-          {
-            "id": "s5-education-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What High school I should look for?"
-          },
-          {
-            "id": "s5-education-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I have additional home education?"
-          },
-          {
-            "id": "s5-education-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from schools?"
-          },
-          {
-            "id": "s5-education-4",
-            "level": 2,
-            "timing": "future",
-            "text": "What should expect from my child?"
-          },
-          {
-            "id": "s5-education-5",
-            "level": 2,
-            "timing": "future",
-            "text": "How do I plan education now and for next stage?"
-          },
-          {
-            "id": "s5-education-6",
-            "level": 2,
-            "timing": "current",
-            "text": "How do I communicate my child's needs"
-          }
-        ]
-      },
-      {
-        "name": "Finance",
-        "emoji": "💰",
-        "questions": [
-          {
-            "id": "s5-finance-1",
-            "level": 1,
-            "timing": "future",
-            "text": "Who will pay for education?"
-          },
-          {
-            "id": "s5-finance-2",
-            "level": 2,
-            "timing": "future",
-            "text": "Who will pay for therapies"
-          },
-          {
-            "id": "s5-finance-3",
-            "level": 2,
-            "timing": "current",
-            "text": "What other cost/income I should consider"
-          }
-        ]
-      },
-      {
-        "name": "Legal",
-        "emoji": "⚖️",
-        "questions": [
-          {
-            "id": "s5-legal-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are my rights?"
-          },
-          {
-            "id": "s5-legal-2",
-            "level": 2,
-            "timing": "current",
-            "text": "in my hometown"
-          },
-          {
-            "id": "s5-legal-3",
-            "level": 2,
-            "timing": "current",
-            "text": "in my county"
-          },
-          {
-            "id": "s5-legal-4",
-            "level": 2,
-            "timing": "current",
-            "text": "in my state"
-          },
-          {
-            "id": "s5-legal-5",
-            "level": 2,
-            "timing": "current",
-            "text": "In my country"
-          },
-          {
-            "id": "s5-legal-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What other legal steps I should take to protect my adult child's future?"
-          }
-        ]
-      },
-      {
-        "name": "Daily Life",
-        "emoji": "🗓️",
-        "questions": [
-          {
-            "id": "s5-dailylife-1",
-            "level": 1,
-            "timing": "future",
-            "text": "my life changed. What should I plan for?"
-          },
-          {
-            "id": "s5-dailylife-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Day routine"
-          },
-          {
-            "id": "s5-dailylife-3",
-            "level": 2,
-            "timing": "current",
-            "text": "Night Routine"
-          },
-          {
-            "id": "s5-dailylife-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Week"
-          },
-          {
-            "id": "s5-dailylife-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Month"
-          },
-          {
-            "id": "s5-dailylife-6",
-            "level": 2,
-            "timing": "current",
-            "text": "Year"
-          },
-          {
-            "id": "s5-dailylife-7",
-            "level": 2,
-            "timing": "current",
-            "text": "Weekend"
-          },
-          {
-            "id": "s5-dailylife-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Holidays"
-          },
-          {
-            "id": "s5-dailylife-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Birthday"
-          },
-          {
-            "id": "s5-dailylife-10",
-            "level": 2,
-            "timing": "current",
-            "text": "Vacation"
-          },
-          {
-            "id": "s5-dailylife-11",
-            "level": 2,
-            "timing": "future",
-            "text": "Next stage"
-          }
-        ]
-      },
-      {
-        "name": "Family",
-        "emoji": "👪",
-        "questions": [
-          {
-            "id": "s5-family-1",
-            "level": 1,
-            "timing": "future",
-            "text": "what should I Expect?"
-          },
-          {
-            "id": "s5-family-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Parents"
-          },
-          {
-            "id": "s5-family-3",
-            "level": 2,
-            "timing": "current",
-            "text": "sibling"
-          },
-          {
-            "id": "s5-family-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Grandparents"
-          },
-          {
-            "id": "s5-family-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Extended Family"
-          },
-          {
-            "id": "s5-family-6",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do with regard to:"
-          }
-        ]
-      },
-      {
-        "name": "Crisis Management",
-        "emoji": "🚨",
-        "questions": [
-          {
-            "id": "s5-crisismanagement-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What crisis I should expect?"
-          },
-          {
-            "id": "s5-crisismanagement-2",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do in case of crisis?"
+            "risk": "high",
+            "text": "Who coordinates the adult support system?",
+            "why": "A meaningful adult life requires a new structure for daily activity, relationships, health, and support coordination.",
+            "children": [
+              {
+                "id": "P070",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What backup plan exists if supports fail?"
+              }
+            ]
           }
         ]
       }
     ]
   },
   {
-    "id": "s6",
-    "emoji": "💼",
-    "label": "Ages 22–30",
-    "sub": "Young adult",
-    "ageKey": "22-30",
-    "minAge": 22,
-    "maxAge": 30,
-    "description": "Adult life, ongoing support and long-term planning.",
-    "categories": [
-      {
-        "name": "Medical",
-        "emoji": "🩺",
-        "questions": [
-          {
-            "id": "s6-medical-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What is my medical routine?"
-          },
-          {
-            "id": "s6-medical-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Does my child's medical routine need to be different"
-          },
-          {
-            "id": "s6-medical-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from my doctor"
-          },
-          {
-            "id": "s6-medical-4",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I ask/tell my doctor"
-          },
-          {
-            "id": "s6-medical-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Which Doctor should I talk to?"
-          },
-          {
-            "id": "s6-medical-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What medical situation(s) should I expect?"
-          },
-          {
-            "id": "s6-medical-7",
-            "level": 2,
-            "timing": "current",
-            "text": "What do I do in case of a medical emergency?"
-          },
-          {
-            "id": "s6-medical-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I consider medications/supplements?"
-          },
-          {
-            "id": "s6-medical-9",
-            "level": 2,
-            "timing": "future",
-            "text": "How will adulthood affect my child?"
-          },
-          {
-            "id": "s6-medical-10",
-            "level": 2,
-            "timing": "future",
-            "text": "Should I expect other medical conditions?"
-          },
-          {
-            "id": "s6-medical-11",
-            "level": 2,
-            "timing": "current",
-            "text": "My child do sleep well. What can I do?"
-          }
-        ]
-      },
-      {
-        "name": "Therapy",
-        "emoji": "🧠",
-        "questions": [
-          {
-            "id": "s6-therapy-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are the most important therapies at this age?"
-          },
-          {
-            "id": "s6-therapy-2",
-            "level": 2,
-            "timing": "future",
-            "text": "Should I consider alternative therapies"
-          },
-          {
-            "id": "s6-therapy-3",
-            "level": 2,
-            "timing": "future",
-            "text": "Should I consider alternative support"
-          }
-        ]
-      },
-      {
-        "name": "Education",
-        "emoji": "📚",
-        "questions": [
-          {
-            "id": "s6-education-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What Transition  school I should look for?"
-          },
-          {
-            "id": "s6-education-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I have additional home education?"
-          },
-          {
-            "id": "s6-education-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from schools?"
-          },
-          {
-            "id": "s6-education-4",
-            "level": 2,
-            "timing": "future",
-            "text": "What should expect from my child?"
-          },
-          {
-            "id": "s6-education-5",
-            "level": 2,
-            "timing": "future",
-            "text": "How do I plan education now and for next stage?"
-          },
-          {
-            "id": "s6-education-6",
-            "level": 2,
-            "timing": "current",
-            "text": "How do I communicate my child's needs"
-          }
-        ]
-      },
-      {
-        "name": "Finance",
-        "emoji": "💰",
-        "questions": [
-          {
-            "id": "s6-finance-1",
-            "level": 1,
-            "timing": "future",
-            "text": "Who will pay for education?"
-          },
-          {
-            "id": "s6-finance-2",
-            "level": 2,
-            "timing": "future",
-            "text": "Who will pay for therapies"
-          },
-          {
-            "id": "s6-finance-3",
-            "level": 2,
-            "timing": "current",
-            "text": "What other cost/income I should consider"
-          }
-        ]
-      },
-      {
-        "name": "Legal",
-        "emoji": "⚖️",
-        "questions": [
-          {
-            "id": "s6-legal-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are my rights?"
-          },
-          {
-            "id": "s6-legal-2",
-            "level": 2,
-            "timing": "current",
-            "text": "in my hometown"
-          },
-          {
-            "id": "s6-legal-3",
-            "level": 2,
-            "timing": "current",
-            "text": "in my county"
-          },
-          {
-            "id": "s6-legal-4",
-            "level": 2,
-            "timing": "current",
-            "text": "in my state"
-          },
-          {
-            "id": "s6-legal-5",
-            "level": 2,
-            "timing": "current",
-            "text": "In my country"
-          },
-          {
-            "id": "s6-legal-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What other legal steps I should take to protect my adult child's future?"
-          }
-        ]
-      },
-      {
-        "name": "Daily Life",
-        "emoji": "🗓️",
-        "questions": [
-          {
-            "id": "s6-dailylife-1",
-            "level": 1,
-            "timing": "future",
-            "text": "my life changed. What should I plan for?"
-          },
-          {
-            "id": "s6-dailylife-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Day routine"
-          },
-          {
-            "id": "s6-dailylife-3",
-            "level": 2,
-            "timing": "current",
-            "text": "Night Routine"
-          },
-          {
-            "id": "s6-dailylife-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Week"
-          },
-          {
-            "id": "s6-dailylife-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Month"
-          },
-          {
-            "id": "s6-dailylife-6",
-            "level": 2,
-            "timing": "current",
-            "text": "Year"
-          },
-          {
-            "id": "s6-dailylife-7",
-            "level": 2,
-            "timing": "current",
-            "text": "Weekend"
-          },
-          {
-            "id": "s6-dailylife-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Holidays"
-          },
-          {
-            "id": "s6-dailylife-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Birthday"
-          },
-          {
-            "id": "s6-dailylife-10",
-            "level": 2,
-            "timing": "current",
-            "text": "Vacation"
-          },
-          {
-            "id": "s6-dailylife-11",
-            "level": 2,
-            "timing": "future",
-            "text": "Next stage"
-          }
-        ]
-      },
-      {
-        "name": "Family",
-        "emoji": "👪",
-        "questions": [
-          {
-            "id": "s6-family-1",
-            "level": 1,
-            "timing": "future",
-            "text": "what should I Expect?"
-          },
-          {
-            "id": "s6-family-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Parents"
-          },
-          {
-            "id": "s6-family-3",
-            "level": 2,
-            "timing": "current",
-            "text": "sibling"
-          },
-          {
-            "id": "s6-family-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Grandparents"
-          },
-          {
-            "id": "s6-family-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Extended Family"
-          },
-          {
-            "id": "s6-family-6",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do with regard to:"
-          }
-        ]
-      },
-      {
-        "name": "Crisis Management",
-        "emoji": "🚨",
-        "questions": [
-          {
-            "id": "s6-crisismanagement-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What crisis I should expect?"
-          },
-          {
-            "id": "s6-crisismanagement-2",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do in case of crisis?"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "s7",
-    "emoji": "🏡",
-    "label": "Ages 31–40",
-    "sub": "Adulthood",
-    "ageKey": "31-40",
-    "minAge": 31,
+    "id": "housing-launch",
+    "emoji": "🏠",
+    "label": "Housing Launch",
+    "ageLabel": "Parent 55+ · child 16+",
+    "isTrigger": true,
+    "startAge": 16,
+    "endAge": 40,
     "maxAge": 40,
-    "description": "Sustaining routines, care and the family around your adult child.",
-    "categories": [
+    "super": false,
+    "domain": "Housing / Family Aging",
+    "description": "Housing takes years to plan and is tied to benefits, staffing and family aging — start before a crisis.",
+    "questions": [
       {
-        "name": "Medical",
-        "emoji": "🩺",
-        "questions": [
+        "id": "P071",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "Have we started long-term housing planning before a crisis forces the decision?",
+        "why": "Housing usually takes years to plan and is closely tied to benefits, staffing, family aging, and quality of life.",
+        "children": [
           {
-            "id": "s7-medical-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What is my medical routine?"
-          },
-          {
-            "id": "s7-medical-2",
+            "id": "P072",
             "level": 2,
             "timing": "current",
-            "text": "Does my child's medical routine need to be different"
+            "risk": "high",
+            "text": "Where is the individual expected to live in five years?",
+            "why": "Housing usually takes years to plan and is closely tied to benefits, staffing, family aging, and quality of life.",
+            "children": [
+              {
+                "id": "P073",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What makes the current housing situation sustainable or fragile?"
+              }
+            ]
           },
           {
-            "id": "s7-medical-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from my doctor"
-          },
-          {
-            "id": "s7-medical-4",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I ask/tell my doctor"
-          },
-          {
-            "id": "s7-medical-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Which Doctor should I talk to?"
-          },
-          {
-            "id": "s7-medical-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What medical situation(s) should I expect?"
-          },
-          {
-            "id": "s7-medical-7",
+            "id": "P074",
             "level": 2,
             "timing": "current",
-            "text": "What do I do in case of a medical emergency?"
-          },
-          {
-            "id": "s7-medical-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I consider medications/supplements?"
-          },
-          {
-            "id": "s7-medical-9",
-            "level": 2,
-            "timing": "future",
-            "text": "How will adulthood affect my child?"
-          },
-          {
-            "id": "s7-medical-10",
-            "level": 2,
-            "timing": "future",
-            "text": "Should I expect other medical conditions?"
-          },
-          {
-            "id": "s7-medical-11",
-            "level": 2,
-            "timing": "current",
-            "text": "My child do sleep well. What can I do?"
+            "risk": "high",
+            "text": "What level of support is needed at home?",
+            "why": "Housing usually takes years to plan and is closely tied to benefits, staffing, family aging, and quality of life.",
+            "children": [
+              {
+                "id": "P075",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "How might that support need change over time?"
+              }
+            ]
           }
         ]
       },
       {
-        "name": "Therapy",
-        "emoji": "🧠",
-        "questions": [
+        "id": "P076",
+        "level": 1,
+        "timing": "future",
+        "risk": "critical",
+        "text": "What housing model would best support safety, autonomy, belonging, and family sustainability?",
+        "why": "The best housing plan should balance support needs with dignity, relationships, independence, and family wellbeing.",
+        "children": [
           {
-            "id": "s7-therapy-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are the most important therapies at this age?"
-          },
-          {
-            "id": "s7-therapy-2",
+            "id": "P077",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative therapies"
+            "risk": "high",
+            "text": "What does a good home mean for the individual?",
+            "why": "The best housing plan should balance support needs with dignity, relationships, independence, and family wellbeing.",
+            "children": [
+              {
+                "id": "P078",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What community features matter most?"
+              }
+            ]
           },
           {
-            "id": "s7-therapy-3",
+            "id": "P079",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative support"
-          }
-        ]
-      },
-      {
-        "name": "Education",
-        "emoji": "📚",
-        "questions": [
-          {
-            "id": "s7-education-1",
-            "level": 1,
-            "timing": "future",
-            "text": "Higher Education  I should look for?"
-          },
-          {
-            "id": "s7-education-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I have additional home education?"
-          },
-          {
-            "id": "s7-education-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from higher education?"
-          },
-          {
-            "id": "s7-education-4",
-            "level": 2,
-            "timing": "future",
-            "text": "What should expect from my child?"
-          },
-          {
-            "id": "s7-education-5",
-            "level": 2,
-            "timing": "future",
-            "text": "How do I plan education now and for next stage?"
-          },
-          {
-            "id": "s7-education-6",
-            "level": 2,
-            "timing": "current",
-            "text": "How do I communicate my child's needs"
-          }
-        ]
-      },
-      {
-        "name": "Finance",
-        "emoji": "💰",
-        "questions": [
-          {
-            "id": "s7-finance-1",
-            "level": 1,
-            "timing": "future",
-            "text": "Who will pay for higher education?"
-          },
-          {
-            "id": "s7-finance-2",
-            "level": 2,
-            "timing": "future",
-            "text": "Who will pay for therapies"
-          },
-          {
-            "id": "s7-finance-3",
-            "level": 2,
-            "timing": "current",
-            "text": "What other cost/income I should consider"
-          }
-        ]
-      },
-      {
-        "name": "Legal",
-        "emoji": "⚖️",
-        "questions": [
-          {
-            "id": "s7-legal-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are my rights?"
-          },
-          {
-            "id": "s7-legal-2",
-            "level": 2,
-            "timing": "current",
-            "text": "in my hometown"
-          },
-          {
-            "id": "s7-legal-3",
-            "level": 2,
-            "timing": "current",
-            "text": "in my county"
-          },
-          {
-            "id": "s7-legal-4",
-            "level": 2,
-            "timing": "current",
-            "text": "in my state"
-          },
-          {
-            "id": "s7-legal-5",
-            "level": 2,
-            "timing": "current",
-            "text": "In my country"
-          },
-          {
-            "id": "s7-legal-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What other legal steps I should take to protect my adult child's future?"
-          }
-        ]
-      },
-      {
-        "name": "Daily Life",
-        "emoji": "🗓️",
-        "questions": [
-          {
-            "id": "s7-dailylife-1",
-            "level": 1,
-            "timing": "future",
-            "text": "my life changed. What should I plan for?"
-          },
-          {
-            "id": "s7-dailylife-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Day routine"
-          },
-          {
-            "id": "s7-dailylife-3",
-            "level": 2,
-            "timing": "current",
-            "text": "Night Routine"
-          },
-          {
-            "id": "s7-dailylife-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Week"
-          },
-          {
-            "id": "s7-dailylife-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Month"
-          },
-          {
-            "id": "s7-dailylife-6",
-            "level": 2,
-            "timing": "current",
-            "text": "Year"
-          },
-          {
-            "id": "s7-dailylife-7",
-            "level": 2,
-            "timing": "current",
-            "text": "Weekend"
-          },
-          {
-            "id": "s7-dailylife-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Holidays"
-          },
-          {
-            "id": "s7-dailylife-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Birthday"
-          },
-          {
-            "id": "s7-dailylife-10",
-            "level": 2,
-            "timing": "current",
-            "text": "Vacation"
-          },
-          {
-            "id": "s7-dailylife-11",
-            "level": 2,
-            "timing": "future",
-            "text": "Next stage"
-          }
-        ]
-      },
-      {
-        "name": "Family",
-        "emoji": "👪",
-        "questions": [
-          {
-            "id": "s7-family-1",
-            "level": 1,
-            "timing": "future",
-            "text": "what should I Expect?"
-          },
-          {
-            "id": "s7-family-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Parents"
-          },
-          {
-            "id": "s7-family-3",
-            "level": 2,
-            "timing": "current",
-            "text": "sibling"
-          },
-          {
-            "id": "s7-family-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Grandparents"
-          },
-          {
-            "id": "s7-family-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Extended Family"
-          },
-          {
-            "id": "s7-family-6",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do with regard to:"
-          }
-        ]
-      },
-      {
-        "name": "Crisis Management",
-        "emoji": "🚨",
-        "questions": [
-          {
-            "id": "s7-crisismanagement-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What crisis I should expect?"
-          },
-          {
-            "id": "s7-crisismanagement-2",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do in case of crisis?"
+            "risk": "high",
+            "text": "What housing risks should be avoided?",
+            "why": "The best housing plan should balance support needs with dignity, relationships, independence, and family wellbeing.",
+            "children": [
+              {
+                "id": "P080",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What future caregiver limits should be considered now?"
+              }
+            ]
           }
         ]
       }
     ]
   },
   {
-    "id": "s8",
-    "emoji": "🌳",
-    "label": "Ages 40+",
-    "sub": "Later life",
-    "ageKey": "40+",
-    "minAge": 41,
+    "id": "isp-annual-planning",
+    "emoji": "🔄",
+    "label": "ISP Annual Planning",
+    "ageLabel": "Age 21+ · yearly",
+    "isTrigger": false,
+    "startAge": 21,
+    "endAge": 200,
     "maxAge": 200,
-    "description": "Later life — continuity of care and protecting the future.",
-    "categories": [
+    "super": false,
+    "domain": "Adult Services / Quality of Life",
+    "description": "Every year the ISP should move the person toward a stronger adult life, not repeat last year.",
+    "questions": [
       {
-        "name": "Medical",
-        "emoji": "🩺",
-        "questions": [
+        "id": "P081",
+        "level": 1,
+        "timing": "current",
+        "risk": "critical",
+        "text": "Does the ISP reflect the person's actual goals, preferences, strengths, and support needs this year?",
+        "why": "The ISP should drive meaningful adult outcomes, not simply repeat services from the prior year.",
+        "children": [
           {
-            "id": "s8-medical-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What is my medical routine?"
-          },
-          {
-            "id": "s8-medical-2",
+            "id": "P082",
             "level": 2,
             "timing": "current",
-            "text": "Does my child's medical routine need to be different"
+            "risk": "high",
+            "text": "Did the individual participate in the planning process?",
+            "why": "The ISP should drive meaningful adult outcomes, not simply repeat services from the prior year.",
+            "children": [
+              {
+                "id": "P083",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "How were preferences communicated or interpreted?"
+              }
+            ]
           },
           {
-            "id": "s8-medical-3",
-            "level": 2,
-            "timing": "future",
-            "text": "What should I expect from my doctor"
-          },
-          {
-            "id": "s8-medical-4",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I ask/tell my doctor"
-          },
-          {
-            "id": "s8-medical-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Which Doctor should I talk to?"
-          },
-          {
-            "id": "s8-medical-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What medical situation(s) should I expect?"
-          },
-          {
-            "id": "s8-medical-7",
+            "id": "P084",
             "level": 2,
             "timing": "current",
-            "text": "What do I do in case of a medical emergency?"
-          },
-          {
-            "id": "s8-medical-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Should I consider medications/supplements?"
-          },
-          {
-            "id": "s8-medical-9",
-            "level": 2,
-            "timing": "future",
-            "text": "How will adulthood affect my child?"
-          },
-          {
-            "id": "s8-medical-10",
-            "level": 2,
-            "timing": "future",
-            "text": "Should I expect other medical conditions?"
-          },
-          {
-            "id": "s8-medical-11",
-            "level": 2,
-            "timing": "current",
-            "text": "My child do sleep well. What can I do?"
+            "risk": "high",
+            "text": "Are current supports accurately described?",
+            "why": "The ISP should drive meaningful adult outcomes, not simply repeat services from the prior year.",
+            "children": [
+              {
+                "id": "P085",
+                "level": 3,
+                "timing": "current",
+                "risk": "medium",
+                "text": "What support needs are missing or outdated?"
+              }
+            ]
           }
         ]
       },
       {
-        "name": "Therapy",
-        "emoji": "🧠",
-        "questions": [
+        "id": "P086",
+        "level": 1,
+        "timing": "future",
+        "risk": "critical",
+        "text": "Is this year's ISP moving the person toward a better next year and a stronger adult life?",
+        "why": "Annual planning should create progress in quality of life, not only maintain the status quo.",
+        "children": [
           {
-            "id": "s8-therapy-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are the most important therapies at this age?"
-          },
-          {
-            "id": "s8-therapy-2",
+            "id": "P087",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative therapies"
+            "risk": "high",
+            "text": "What changed since the last ISP?",
+            "why": "Annual planning should create progress in quality of life, not only maintain the status quo.",
+            "children": [
+              {
+                "id": "P088",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What goals should change because life has changed?"
+              }
+            ]
           },
           {
-            "id": "s8-therapy-3",
+            "id": "P089",
             "level": 2,
             "timing": "future",
-            "text": "Should I consider alternative support"
-          }
-        ]
-      },
-      {
-        "name": "Legal",
-        "emoji": "⚖️",
-        "questions": [
-          {
-            "id": "s8-legal-1",
-            "level": 1,
-            "timing": "current",
-            "text": "What are my rights?"
-          },
-          {
-            "id": "s8-legal-2",
-            "level": 2,
-            "timing": "current",
-            "text": "in my hometown"
-          },
-          {
-            "id": "s8-legal-3",
-            "level": 2,
-            "timing": "current",
-            "text": "in my county"
-          },
-          {
-            "id": "s8-legal-4",
-            "level": 2,
-            "timing": "current",
-            "text": "in my state"
-          },
-          {
-            "id": "s8-legal-5",
-            "level": 2,
-            "timing": "current",
-            "text": "In my country"
-          },
-          {
-            "id": "s8-legal-6",
-            "level": 2,
-            "timing": "future",
-            "text": "What other legal steps I should take to protect my adult child's future?"
-          }
-        ]
-      },
-      {
-        "name": "Daily Life",
-        "emoji": "🗓️",
-        "questions": [
-          {
-            "id": "s8-dailylife-1",
-            "level": 1,
-            "timing": "future",
-            "text": "my life changed. What should I plan for?"
-          },
-          {
-            "id": "s8-dailylife-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Day routine"
-          },
-          {
-            "id": "s8-dailylife-3",
-            "level": 2,
-            "timing": "current",
-            "text": "Night Routine"
-          },
-          {
-            "id": "s8-dailylife-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Week"
-          },
-          {
-            "id": "s8-dailylife-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Month"
-          },
-          {
-            "id": "s8-dailylife-6",
-            "level": 2,
-            "timing": "current",
-            "text": "Year"
-          },
-          {
-            "id": "s8-dailylife-7",
-            "level": 2,
-            "timing": "current",
-            "text": "Weekend"
-          },
-          {
-            "id": "s8-dailylife-8",
-            "level": 2,
-            "timing": "current",
-            "text": "Holidays"
-          },
-          {
-            "id": "s8-dailylife-9",
-            "level": 2,
-            "timing": "current",
-            "text": "Birthday"
-          },
-          {
-            "id": "s8-dailylife-10",
-            "level": 2,
-            "timing": "current",
-            "text": "Vacation"
-          },
-          {
-            "id": "s8-dailylife-11",
-            "level": 2,
-            "timing": "future",
-            "text": "Next stage"
-          }
-        ]
-      },
-      {
-        "name": "Family",
-        "emoji": "👪",
-        "questions": [
-          {
-            "id": "s8-family-1",
-            "level": 1,
-            "timing": "future",
-            "text": "what should I Expect?"
-          },
-          {
-            "id": "s8-family-2",
-            "level": 2,
-            "timing": "current",
-            "text": "Parents"
-          },
-          {
-            "id": "s8-family-3",
-            "level": 2,
-            "timing": "current",
-            "text": "sibling"
-          },
-          {
-            "id": "s8-family-4",
-            "level": 2,
-            "timing": "current",
-            "text": "Grandparents"
-          },
-          {
-            "id": "s8-family-5",
-            "level": 2,
-            "timing": "current",
-            "text": "Extended Family"
-          },
-          {
-            "id": "s8-family-6",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do with regard to:"
-          }
-        ]
-      },
-      {
-        "name": "Crisis Management",
-        "emoji": "🚨",
-        "questions": [
-          {
-            "id": "s8-crisismanagement-1",
-            "level": 1,
-            "timing": "future",
-            "text": "What crisis I should expect?"
-          },
-          {
-            "id": "s8-crisismanagement-2",
-            "level": 2,
-            "timing": "current",
-            "text": "What should I do in case of crisis?"
+            "risk": "high",
+            "text": "What should improve by next year's ISP?",
+            "why": "Annual planning should create progress in quality of life, not only maintain the status quo.",
+            "children": [
+              {
+                "id": "P090",
+                "level": 3,
+                "timing": "future",
+                "risk": "medium",
+                "text": "What future risks should this ISP begin to prepare for?"
+              }
+            ]
           }
         ]
       }
@@ -2603,17 +932,7 @@ const GPS_STAGES = [
 ];
 
 
-// The 8 age stages are the milestones on the GPS path. Kept the old export name
-// GPS_MILESTONES so existing screens keep working; GPS_STAGES is the clear alias.
-const GPS_MILESTONES = GPS_STAGES;
+// The AI names each level's role in the funnel.
+const GPS_LEVEL_LABEL = { 1: 'Key question', 2: 'Narrow it down', 3: 'The specific question' };
 
-// Answer scale shown under every question. One tap = one micro-answer;
-// the AI layer interprets them, the app never judges an answer.
-const GPS_ANSWER_OPTIONS = [
-  { id: 'yes',    label: 'Yes',          emoji: '👍' },
-  { id: 'no',     label: 'No',           emoji: '👎' },
-  { id: 'unsure', label: 'Not sure',     emoji: '🤔' },
-  { id: 'na',     label: 'Not relevant', emoji: '➖' },
-];
-
-Object.assign(window, { GPS_STAGES, GPS_MILESTONES, GPS_ANSWER_OPTIONS });
+Object.assign(window, { GPS_MILESTONES, GPS_LEVEL_LABEL });
