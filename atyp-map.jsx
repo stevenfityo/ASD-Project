@@ -36,6 +36,31 @@ function gpsCarriedQuestions(mIndex, answers) {
   return gpsFlatQuestions(prev).filter(q => q.cascade && GPS_OPEN_ANSWERS.has(answers[q.id]));
 }
 
+// True while q's subtree still has something unanswered below an answer.
+function gpsSubtreeOpen(q, answers) {
+  return (q.children || []).some(c => !answers[c.id] || gpsSubtreeOpen(c, answers));
+}
+
+function gpsAnsweredDescendants(q, answers) {
+  return (q.children || []).reduce((n, c) => n + (answers[c.id] ? 1 : 0) + gpsAnsweredDescendants(c, answers), 0);
+}
+
+// Resume a thread from an L1 root: follow answered picks downward until we
+// reach the question to answer next (or a choice between clarifiers).
+function gpsBuildThread(l1, answers) {
+  const path = [l1];
+  let node = l1;
+  while (answers[node.id] && node.children && node.children.length) {
+    let next = null;
+    if (node.children.length === 1) next = node.children[0];
+    else next = node.children.find(c => answers[c.id] && gpsSubtreeOpen(c, answers));
+    if (!next) break;
+    path.push(next);
+    node = next;
+  }
+  return path;
+}
+
 // Index of the milestone anchoring "you are here" for the child's age.
 function currentMilestoneIndex(childAge) {
   for (let i = 0; i < GPS_MILESTONES.length; i++) {
@@ -200,6 +225,10 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   const answers = (gpsStore[childId] || {}).answers || {};
 
   const [sheetIndex, setSheetIndex] = React.useState(null); // milestone sheet
+  // Active question thread inside the sheet: array of nodes from the chosen
+  // L1 down to the question currently being answered. null = stage overview.
+  const [thread, setThread] = React.useState(null);
+  const openSheet = (i) => { setThread(null); setSheetIndex(i); };
   const [showSummary, setShowSummary] = React.useState(false);
   // AI chat: null | { milestone } | { path: true }
   const [aiScope, setAiScope] = React.useState(null);
@@ -224,29 +253,225 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
     m,
     total: gpsFlatQuestions(m).length,
     answered: gpsAnsweredCount(m, answers),
+    rootsAns: m.questions.filter(q => answers[q.id]).length,
+    rootsTotal: m.questions.length,
     rootsDone: gpsRootsAnswered(m, answers),
+    started: m.questions.some(q => answers[q.id]),
     carried: gpsCarriedQuestions(i, answers),
   }));
-  const unlocked = GPS_MILESTONES.map((_, i) => i <= currentIndex || msState[i - 1].rootsDone);
+  // The next stage opens as soon as the previous one has been started —
+  // families answer the questions that speak to them, not all of them.
+  const unlocked = GPS_MILESTONES.map((_, i) => i <= currentIndex || msState[i - 1].started);
   const total = GPS_MILESTONES.length;
   const exploredCount = msState.filter(s => s.answered > 0).length;
   const answeredTotal = msState.reduce((n, s) => n + s.answered, 0);
-  const questionsTotal = msState.reduce((n, s) => n + s.total, 0);
 
-  // ── Milestone sheet — Now / Planning tracks + carried-over questions ──
+  // ── Milestone sheet ───────────────────────────────────────────────────
+  // Two modes: overview (pick one of the L1 key questions) and thread
+  // (step through it: answer L1 → pick one L2 clarifier → answer → its L3
+  // appears → answer). Only the chosen branch is ever shown.
   const questionSheet = sheetIndex !== null ? (() => {
-    const { m, total: qTotal, answered, carried } = msState[sheetIndex];
+    const { m, answered, carried, rootsAns, rootsTotal } = msState[sheetIndex];
+
+    // Answer inside a thread: answering an L2 auto-reveals its single L3;
+    // un-answering rewinds the thread back to that question.
+    const threadAnswer = (q, optionId) => {
+      saveAnswer(q, optionId);
+      setThread(t => {
+        if (!t) return t;
+        const idx = t.findIndex(x => x.id === q.id);
+        if (idx < 0) return t;
+        if (!optionId) return t.slice(0, idx + 1);
+        // q may arrive with children stripped (render passes a flat copy) —
+        // use the original node from the thread to find what comes next.
+        const node = t[idx];
+        const isLast = idx === t.length - 1;
+        if (isLast && node.children && node.children.length === 1) return [...t, node.children[0]];
+        return t;
+      });
+    };
+
+    const answerLabel = (qid) => {
+      const opt = GPS_ANSWER_OPTIONS.find(o => o.id === answers[qid]);
+      return opt ? `${opt.emoji} ${opt.label}` : null;
+    };
+
+    // ── Thread mode ──
+    let threadBody = null;
+    if (thread) {
+      const current = thread.find(q => !answers[q.id]) || null;
+      const last = thread[thread.length - 1];
+      const trail = thread.filter(q => answers[q.id] && q !== current);
+      let chooser = null, complete = false;
+      if (!current) {
+        const kids = (last.children || []).filter(c => !answers[c.id]);
+        if (last.children && last.children.length > 1 && kids.length) chooser = kids;
+        else complete = true;
+      }
+      const root = thread[0];
+      const otherL2 = complete ? (root.children || []).filter(c => !answers[c.id]) : [];
+      const otherRoots = complete ? m.questions.filter(q => !answers[q.id]) : [];
+
+      threadBody = (
+        <>
+          <button onClick={() => setThread(null)} style={{
+            border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 12.5, fontWeight: 700, color: T.green, padding: '10px 0 2px', textAlign: 'left',
+          }}>‹ All key questions</button>
+
+          {/* answered steps so far */}
+          {trail.map(q => (
+            <div key={q.id} style={{ background: T.greenSoft, borderRadius: 14, padding: '10px 13px', marginTop: 8 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.ink2, lineHeight: 1.4 }}>{q.text}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: T.green }}>{answerLabel(q.id)}</span>
+                <button onClick={() => threadAnswer(q, null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 700, color: T.muted, padding: 0 }}>change</button>
+              </div>
+            </div>
+          ))}
+
+          {/* the one question being answered right now */}
+          {current && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: T.green, letterSpacing: '0.06em', marginBottom: 6 }}>
+                {current.level === 1 ? 'KEY QUESTION' : `LEVEL ${current.level} · GOING DEEPER`}
+              </div>
+              <QuestionNode q={{ ...current, children: [] }} answers={answers} onAnswer={threadAnswer}/>
+            </div>
+          )}
+
+          {/* answered the L1 — choose which clarifier to explore */}
+          {chooser && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: T.green, letterSpacing: '0.06em', marginBottom: 6 }}>
+                WHAT WOULD YOU LIKE TO CLARIFY NEXT?
+              </div>
+              {chooser.map(c => (
+                <button key={c.id} onClick={() => setThread(t => [...t, c])} style={{
+                  width: '100%', background: '#fff', borderRadius: 14, padding: '13px 15px', marginBottom: 8,
+                  border: `1.5px solid ${T.line}`, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 2px 8px rgba(27,36,33,0.05)',
+                }}>
+                  <div style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{c.text}</div>
+                  <Icon.ChevronRight s={15} c={T.muted}/>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* branch finished */}
+          {complete && (
+            <div style={{ marginTop: 14, textAlign: 'center' }}>
+              <div style={{ width: 48, height: 48, borderRadius: 999, background: T.mint, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon.Check s={24} c="#fff" sw={2.8}/>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: T.ink, marginTop: 8 }}>Thread complete</div>
+              <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, marginTop: 4 }}>
+                Your answers are saved — the AI uses them to guide you.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14, textAlign: 'left' }}>
+                {otherL2.slice(0, 1).map(c => (
+                  <button key={c.id} onClick={() => setThread([root, c])} style={{
+                    width: '100%', background: '#fff', borderRadius: 14, padding: '12px 15px',
+                    border: `1.5px solid ${T.line}`, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 800, color: T.green, letterSpacing: '0.05em', marginBottom: 2 }}>ALSO CLARIFY</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{c.text}</div>
+                    </div>
+                    <Icon.ChevronRight s={15} c={T.muted}/>
+                  </button>
+                ))}
+                {otherRoots.slice(0, 1).map(q => (
+                  <button key={q.id} onClick={() => setThread([q])} style={{
+                    width: '100%', background: '#fff', borderRadius: 14, padding: '12px 15px',
+                    border: `1.5px solid ${T.line}`, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 800, color: T.green, letterSpacing: '0.05em', marginBottom: 2 }}>NEXT KEY QUESTION</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{q.text}</div>
+                    </div>
+                    <Icon.ChevronRight s={15} c={T.muted}/>
+                  </button>
+                ))}
+                <button onClick={() => setThread(null)} style={{
+                  width: '100%', height: 44, borderRadius: 14, border: `1.5px solid ${T.line}`, background: '#fff',
+                  cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, color: T.ink2,
+                }}>Back to stage overview</button>
+              </div>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // ── Overview mode — one card per L1 key question ──
+    const rootCard = (q) => {
+      const a = answerLabel(q.id);
+      const deep = gpsAnsweredDescendants(q, answers);
+      const riskDot = q.risk === 'critical' ? T.red : T.line;
+      return (
+        <button key={q.id} onClick={() => setThread(gpsBuildThread(q, answers))} style={{
+          width: '100%', background: '#fff', borderRadius: 16, padding: '13px 15px', marginBottom: 8,
+          border: `1.5px solid ${a ? 'rgba(45,106,79,0.25)' : T.line}`,
+          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+          display: 'flex', alignItems: 'flex-start', gap: 10, boxShadow: '0 2px 8px rgba(27,36,33,0.05)',
+        }}>
+          <div style={{ width: 7, height: 7, borderRadius: 999, background: riskDot, flexShrink: 0, marginTop: 6 }}/>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{q.text}</div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: a ? T.green : T.muted, marginTop: 5 }}>
+              {a ? `${a}${deep ? ` · ${deep} follow-up${deep > 1 ? 's' : ''} answered` : ''}` : 'Tap to explore ›'}
+            </div>
+          </div>
+          <Icon.ChevronRight s={15} c={T.muted}/>
+        </button>
+      );
+    };
     const nowQs = m.questions.filter(q => q.timing === 'current');
     const futureQs = m.questions.filter(q => q.timing === 'future');
     const sectionTitle = (label, hint) => (
-      <div style={{ margin: '18px 0 8px' }}>
+      <div style={{ margin: '16px 0 8px' }}>
         <div style={{ fontSize: 11, fontWeight: 800, color: T.green, letterSpacing: '0.06em' }}>{label}</div>
         <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{hint}</div>
       </div>
     );
+
+    const overviewBody = (
+      <>
+        <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, margin: '8px 0 2px' }}>{m.description}</div>
+
+        {carried.length > 0 && (
+          <>
+            <div style={{ margin: '16px 0 8px', background: '#FFF3D6', borderRadius: 14, padding: '10px 13px' }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#9C7A1A', letterSpacing: '0.05em' }}>CARRIED OVER FROM {GPS_MILESTONES[sheetIndex - 1].label.toUpperCase()}</div>
+              <div style={{ fontSize: 11.5, color: '#7A6115', marginTop: 2, lineHeight: 1.45 }}>
+                You marked these unresolved earlier — at this stage they become primary questions.
+              </div>
+            </div>
+            {carried.map(q => (
+              <QuestionNode key={`carry_${q.id}`} q={{ ...q, children: [] }} answers={answers} onAnswer={saveAnswer}/>
+            ))}
+          </>
+        )}
+
+        {sectionTitle('NOW', 'Where things stand today · pick a question to explore')}
+        {nowQs.map(rootCard)}
+
+        {sectionTitle('PLANNING AHEAD', 'What to prepare before the next stage')}
+        {futureQs.map(rootCard)}
+
+        <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+          Answer what speaks to you — there is no right answer, only your family's path.
+        </div>
+      </>
+    );
+
     return (
       <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-        <div onClick={() => setSheetIndex(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+        <div onClick={() => openSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
         <div style={{ position: 'relative', background: T.bg, borderRadius: '22px 22px 0 0', maxHeight: '90%', display: 'flex', flexDirection: 'column', animation: 'atypSheetUp .28s ease' }}>
           <div style={{ padding: '0 18px', flexShrink: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
@@ -258,42 +483,20 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
                 <div style={{ fontSize: 15, fontWeight: 800, color: T.ink }}>{m.label}</div>
                 <div style={{ fontSize: 11.5, color: T.muted }}>{m.trigger} · {m.domain}</div>
               </div>
-              <button onClick={() => setSheetIndex(null)} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              <button onClick={() => openSheet(null)} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'rgba(45,106,79,0.15)', overflow: 'hidden' }}>
-                <div style={{ width: `${Math.round((answered / qTotal) * 100)}%`, height: '100%', background: T.green, borderRadius: 99, transition: 'width .25s' }}/>
+                <div style={{ width: `${Math.round((rootsAns / rootsTotal) * 100)}%`, height: '100%', background: T.green, borderRadius: 99, transition: 'width .25s' }}/>
               </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.green, whiteSpace: 'nowrap' }}>{answered}/{qTotal} answered</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.green, whiteSpace: 'nowrap' }}>
+                {rootsAns}/{rootsTotal} key questions{answered > rootsAns ? ` · ${answered} answered` : ''}
+              </div>
             </div>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 14px' }}>
-            <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, margin: '8px 0 2px' }}>{m.description}</div>
-
-            {carried.length > 0 && (
-              <>
-                <div style={{ margin: '16px 0 8px', background: '#FFF3D6', borderRadius: 14, padding: '10px 13px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#9C7A1A', letterSpacing: '0.05em' }}>CARRIED OVER FROM {GPS_MILESTONES[sheetIndex - 1].label.toUpperCase()}</div>
-                  <div style={{ fontSize: 11.5, color: '#7A6115', marginTop: 2, lineHeight: 1.45 }}>
-                    You marked these unresolved earlier — at this stage they become primary questions.
-                  </div>
-                </div>
-                {carried.map(q => (
-                  <QuestionNode key={`carry_${q.id}`} q={{ ...q, children: [] }} answers={answers} onAnswer={saveAnswer}/>
-                ))}
-              </>
-            )}
-
-            {sectionTitle('NOW', 'Where things stand today')}
-            {nowQs.map(q => <QuestionNode key={q.id} q={q} answers={answers} onAnswer={saveAnswer}/>)}
-
-            {sectionTitle('PLANNING AHEAD', 'What to prepare before the next stage')}
-            {futureQs.map(q => <QuestionNode key={q.id} q={q} answers={answers} onAnswer={saveAnswer}/>)}
-
-            <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
-              There is no right answer — only your family's path.
-            </div>
+            {thread ? threadBody : overviewBody}
           </div>
 
           <div style={{ padding: '10px 18px 30px', flexShrink: 0, background: T.bg, borderTop: `1px solid ${T.line}` }}>
@@ -332,7 +535,7 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
             Path summary
           </div>
           <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, marginTop: 2, marginBottom: 10 }}>
-            {answeredTotal} of {questionsTotal} questions answered across {child.name}'s path.
+            {answeredTotal} question{answeredTotal === 1 ? '' : 's'} answered across {child.name}'s path.
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 14px' }}>
@@ -340,7 +543,7 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
             {msState.map((s, i) => {
               const openCrit = gpsOpenCritical(s.m, answers).length;
               return (
-                <button key={s.m.id} onClick={() => { setShowSummary(false); setSheetIndex(i); }} style={{
+                <button key={s.m.id} onClick={() => { setShowSummary(false); openSheet(i); }} style={{
                   width: '100%', background: '#fff', borderRadius: 14, padding: '11px 13px',
                   border: `1.5px solid ${T.line}`, cursor: 'pointer', fontFamily: 'inherit',
                   display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
@@ -350,9 +553,9 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
                     <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>{s.m.label}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                       <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'rgba(45,106,79,0.12)', overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.round((s.answered / s.total) * 100)}%`, height: '100%', background: T.green, borderRadius: 99 }}/>
+                        <div style={{ width: `${Math.round((s.rootsAns / s.rootsTotal) * 100)}%`, height: '100%', background: T.green, borderRadius: 99 }}/>
                       </div>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: T.muted }}>{s.answered}/{s.total}</span>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: T.muted }}>{s.rootsAns}/{s.rootsTotal} key</span>
                     </div>
                   </div>
                   {s.answered > 0 && openCrit > 0 && (
@@ -447,14 +650,14 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
             {child.name}'s life path
           </div>
           <div style={{ fontSize: 12, color: T.ink2, lineHeight: 1.5, marginBottom: 12 }}>
-            8 milestones, one path. Answer the questions at each stage — the AI uses them, together with {child.name}'s profile, to guide you.
+            8 milestones, one path. Pick a key question at each stage — each answer opens the next level, and the AI uses them with {child.name}'s profile to guide you.
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'rgba(45,106,79,0.15)', overflow: 'hidden' }}>
-              <div style={{ width: `${Math.round((answeredTotal / questionsTotal) * 100)}%`, height: '100%', background: T.green, borderRadius: 99, transition: 'width .25s' }}/>
+              <div style={{ width: `${Math.round((exploredCount / total) * 100)}%`, height: '100%', background: T.green, borderRadius: 99, transition: 'width .25s' }}/>
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: T.green, whiteSpace: 'nowrap' }}>
-              {answeredTotal}/{questionsTotal} questions
+              {exploredCount}/{total} stages
             </div>
           </div>
         </div>
@@ -488,7 +691,7 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
             return (
               <React.Fragment key={m.id}>
                 <button
-                  onClick={isUnlocked ? () => setSheetIndex(i) : undefined}
+                  onClick={isUnlocked ? () => openSheet(i) : undefined}
                   style={{
                     position: 'absolute', left: x - size / 2, top: y - size / 2,
                     width: size, height: size, borderRadius: 999, padding: 0,
