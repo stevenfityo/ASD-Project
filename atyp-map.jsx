@@ -74,59 +74,82 @@ function currentMilestoneIndex(childAge) {
 // model will get (child profile + the family's answers), so swapping in an
 // API call later only means replacing this function.
 
-function gpsAIReply(child, scope, answers, turn) {
+function gpsAIReply(child, scope, answers, userText, turn) {
   const milestones = scope.milestone ? [scope.milestone] : GPS_MILESTONES;
   const name = child.name, age = child.age;
+  const LBL = { yes: 'Yes', no: 'No', unsure: 'Not sure', na: 'Not relevant' };
 
-  const flags = [], open = [], wins = [];
+  // Everything the family has actually told us, in question order.
+  const answered = [], flags = [], wins = [], open = [];
   milestones.forEach(m => {
     gpsFlatQuestions(m).forEach(q => {
       const a = answers[q.id];
-      if (!a && q.level === 1) open.push({ q, m });
-      else if (a === 'no' || a === 'unsure') flags.push({ q, m, a });
-      else if (a === 'yes' && q.level === 1) wins.push({ q, m });
+      if (!a) { if (q.level === 1) open.push({ q, m }); return; }
+      answered.push({ q, a, m });
+      if (a === 'no' || a === 'unsure') flags.push({ q, a, m });
+      else if (a === 'yes') wins.push({ q, m });
     });
   });
 
-  const answeredAny = flags.length + wins.length > 0 ||
-    milestones.some(m => gpsAnsweredCount(m, answers) > 0);
+  // Crude intent detection so the reply follows the user's question.
+  const t = (userText || '').toLowerCase();
+  const wantsWhy   = /why|matter|важлив|чому/.test(t);
+  const wantsNext  = /next|coming|ahead|later|далі|наступ/.test(t);
+  const wantsFocus = /focus|first|start|priorit|begin|фокус|почат/.test(t);
+  const wantsRecap = /summar|progress|recap|far|підсум|прогрес/.test(t);
 
+  const here = scope.milestone ? `the ${scope.milestone.label} stage` : `${name}'s whole path`;
+  const p = [];
+
+  // Nothing answered in scope — say so explicitly instead of pretending.
+  if (!answered.length) {
+    p.push(`You haven't answered anything in ${here} yet, so I can only speak generally for a ${age}-year-old${child.diagShort ? ` with ${child.diagShort}` : ''}.`);
+    if (open.length) p.push(`Answer even one key question and I'll get specific. A good place to start: "${open[0].q.text}"`);
+    return p.join('\n\n');
+  }
+
+  // 1) Mirror the answers back, so it's clear the reply is built on them.
+  const mark = (a) => a === 'yes' ? '✓' : a === 'na' ? '—' : '⚠';
+  const mirror = answered.slice(-5).map(({ q, a, m }) =>
+    `${mark(a)} "${q.text}" → ${LBL[a]}${scope.milestone ? '' : ` (${m.label})`}`).join('\n');
   const openers = [
-    `Here's what stands out for ${name} (age ${age}) right now:`,
-    `Looking at ${name}'s profile and your answers:`,
-    `Good question — here's my read based on what you've shared so far:`,
+    `Here's my read for ${name} (age ${age}), built on what you've told me:`,
+    `Working from your ${answered.length} answer${answered.length > 1 ? 's' : ''} in ${here}:`,
+    `Let me anchor this in what you've shared so far:`,
   ];
-  const p = [openers[turn % openers.length]];
+  p.push(`${openers[turn % openers.length]}\n\n${mirror}`);
 
-  if (!answeredAny) {
-    p.push(scope.milestone
-      ? `I don't have your answers for ${scope.milestone.label} yet. Tap through the questions above — even quick "Not sure" answers help me point you to what matters most for ${name}.`
-      : `You haven't answered questions on the path yet. Open the stage marked "you are here" and tap through a few — I'll get much more specific.`);
+  // 2) Answer-driven guidance, steered by the question's intent.
+  if (flags.length) {
+    p.push(`Where I'd focus${wantsFocus ? ' first' : ''}:\n` + flags.slice(0, 3).map((f, i) =>
+      `${i + 1}. ${f.q.text} — you marked "${LBL[f.a]}"${f.q.cascade ? '. This one follows you into the next stage until it\'s resolved' : ''}`
+    ).join('\n'));
+    const why = flags.find(f => f.q.why) || answered.find(x => x.q.why);
+    if (why && (wantsWhy || wantsFocus || turn === 0)) p.push(`Why it matters: ${why.q.why}`);
+  } else if (wantsWhy) {
+    const why = answered.find(x => x.q.why);
+    if (why) p.push(`Why these questions matter: ${why.q.why}`);
   } else {
-    if (flags.length) {
-      const top = flags.slice(0, 3);
-      p.push('The biggest gaps you\'ve flagged:\n' + top.map(f =>
-        `• ${f.q.text} — you said "${f.a === 'no' ? 'No' : 'Not sure'}"${scope.milestone ? '' : ` (${f.m.label})`}`
-      ).join('\n'));
-      const why = top.find(f => f.q.why);
-      if (why) p.push(`Why it matters: ${why.q.why}`);
-    }
-    if (open.length) {
-      p.push(`There ${open.length === 1 ? 'is 1 key screening question' : `are ${open.length} key screening questions`} you haven't looked at yet — starting with "${open[0].q.text}"`);
-    }
-    if (wins.length && flags.length) {
-      p.push(`Already in good shape: "${wins[0].q.text}" — keep that going.`);
-    }
-    if (!flags.length && !open.length) {
-      p.push(`You've worked through ${scope.milestone ? 'this stage' : 'the path'} — nothing is unresolved right now. I'd revisit these answers whenever something changes at school, at home, or with services.`);
-    }
+    p.push(`Nothing you've answered in ${here} is unresolved — ${wins.length ? `"${wins[0].q.text}" looks solid` : 'good footing so far'}. I'd revisit these whenever something changes at school, at home, or with services.`);
+  }
+
+  if (wantsRecap && scope.milestone === undefined) {
+    const started = GPS_MILESTONES.filter(m => m.questions.some(q => answers[q.id]));
+    p.push(`Progress so far: ${started.length} of ${GPS_MILESTONES.length} stages started, ${answered.length} questions answered, ${flags.length} flagged unresolved.`);
+  }
+
+  if (open.length && !wantsNext) {
+    p.push(`Still unanswered in ${here}: ${open.length} key question${open.length > 1 ? 's' : ''} — next up "${open[0].q.text}"`);
   }
 
   const next = GPS_MILESTONES.find(m => m.minAge > age);
-  if (next && !scope.milestone) {
+  if (next && (wantsNext || !scope.milestone)) {
     p.push(`Coming up for ${name}: ${next.emoji} ${next.label} (${next.trigger}). The earlier you start, the calmer it goes.`);
   }
-  p.push('Want me to turn any of this into concrete next steps?');
+
+  p.push(turn % 2 === 0
+    ? 'Want me to turn any of this into concrete next steps?'
+    : 'Ask me about any of these — or answer another question above and I\'ll update my read.');
   return p.join('\n\n');
 }
 
@@ -771,6 +794,9 @@ function GPSAIChat({ child, scope, answers, onClose }) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, typing]);
 
+  const scopeAnswered = (scope.milestone ? [scope.milestone] : GPS_MILESTONES)
+    .reduce((n, m) => n + gpsAnsweredCount(m, answers), 0);
+
   const suggestions = scope.milestone
     ? ['What should we focus on first?', 'Why do these questions matter now?', `What's coming next for ${child.name}?`]
     : ['Where are our biggest gaps?', 'What should we do this year?', 'Summarize our progress'];
@@ -783,7 +809,7 @@ function GPSAIChat({ child, scope, answers, onClose }) {
     setTyping(true);
     const turn = turnRef.current++;
     setTimeout(() => {
-      setMessages(ms => [...ms, { role: 'ai', text: gpsAIReply(child, scope, answers, turn) }]);
+      setMessages(ms => [...ms, { role: 'ai', text: gpsAIReply(child, scope, answers, clean, turn) }]);
       setTyping(false);
     }, 900);
   };
@@ -813,8 +839,15 @@ function GPSAIChat({ child, scope, answers, onClose }) {
         <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
           {messages.length === 0 && !typing && (
             <div style={{ textAlign: 'center', padding: '18px 10px' }}>
-              <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.55, marginBottom: 14 }}>
+              <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.55, marginBottom: 10 }}>
                 Ask anything about {scope.milestone ? `the ${scope.milestone.label} stage` : `${child.name}'s path`} — I'll answer using {child.name}'s profile (age {child.age}, {child.diagnosis}) and the answers you've given.
+              </div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: scopeAnswered ? T.greenSoft : T.bgAlt, borderRadius: 999, padding: '5px 12px', marginBottom: 14 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: scopeAnswered ? T.green : T.muted }}>
+                  {scopeAnswered
+                    ? `${scopeAnswered} answer${scopeAnswered > 1 ? 's' : ''} on record — my replies build on them`
+                    : 'No answers yet — answer a question first for a personalized reply'}
+                </span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {suggestions.map(s => (
