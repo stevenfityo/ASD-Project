@@ -1,595 +1,422 @@
 // aTyp — GPS: Life Journey Guide for ASD Parents.
-// A branching decision tree: each answer reveals a different next question,
-// so parents can preview the path their child may take based on their choices.
-// Answers also generate a personal route — concrete next steps parents can
-// open, read, and check off (Plan B: "step route"). Progress persists per
-// child in localStorage under the 'atyp_gps' key.
+// Built on the JoyDew "Small Question Model" (atyp-gps-data.jsx): 8 life
+// milestones, each a tree of neutral questions. Level 1 screening questions
+// reveal Level 2 clarifiers, which reveal Level 3 follow-ups. One-tap answers
+// (Yes / No / Not sure / Not relevant) feed the AI layer; unresolved cascade
+// questions carry over to the next milestone as top-level questions.
+// Progress persists per child in localStorage under 'atyp_gps_v2'.
 
-// ── Life Journey Data ─────────────────────────────────────────────────
-// Each stage has an `entry` moment id. Each choice carries a `next` field:
-// the id of the moment that choice leads to, or null to end the stage's path.
-const GPS_STAGES = [
-  {
-    id: 'g1', emoji: '🌱', label: 'First Steps',
-    sub: 'Diagnosis & adjustment', ageRange: '0 – 5', minAge: 0, maxAge: 5,
-    description: 'Learning your child has autism is one of the most profound moments of your life. Everything you imagined about your future shifts. This stage is about finding your footing — as a parent, as a family.',
-    entry: 'g1m1',
-    moments: [
-      {
-        id: 'g1m1',
-        question: 'How are you doing emotionally right now?',
-        choices: [
-          { id: 'a', label: 'Finding my way', emoji: '🌊', next: 'g1m2',
-            insight: 'Grief, confusion, and love can coexist. Many parents describe the months after diagnosis as a fog — and then, slowly, clarity. You don\'t need to have it figured out yet. Reaching out to other ASD parents often helps more than any book.' },
-          { id: 'b', label: 'Stronger than expected', emoji: '💪', next: 'g1m2',
-            insight: 'Some parents surprise themselves with resilience. If you\'re feeling capable right now — lean into it. Build routines, make calls, set up systems. But stay honest with yourself: burnout often comes later when adrenaline fades.' },
-          { id: 'c', label: 'Overwhelmed and exhausted', emoji: '😮‍💨', next: null,
-            insight: 'This is one of the hardest things a parent can carry. Please don\'t carry it alone. Ask your doctor about parent support groups, look into respite care, and remember: taking care of yourself is taking care of your child. Start there before anything else.' },
-        ]
-      },
-      {
-        id: 'g1m2',
-        question: 'How has your family reacted to the diagnosis?',
-        choices: [
-          { id: 'a', label: 'We\'re united', emoji: '🤝', next: null,
-            insight: 'A united family is your child\'s greatest asset. Make sure everyone — grandparents, siblings — has a basic understanding of autism. Books like "Ten Things Every Child with Autism Wishes You Knew" are gentle starting points.' },
-          { id: 'b', label: 'Some don\'t accept it', emoji: '💔', next: null,
-            insight: 'Denial in family members is extremely common, especially among grandparents. Give people time, but protect your child from dismissive environments. A family therapy session with an autism-informed therapist can open difficult conversations.' },
-          { id: 'c', label: 'We\'re mostly on our own', emoji: '🏝️', next: null,
-            insight: 'Many ASD families are isolated. Online communities like the Autism Society forums have connected thousands of families who were once exactly where you are. You don\'t have to discover this alone.' },
-        ]
-      },
-    ],
-  },
-  {
-    id: 'g2', emoji: '🏠', label: 'Building Roots',
-    sub: 'Family rhythms & early school', ageRange: '4 – 9', minAge: 4, maxAge: 9,
-    description: 'Life has reorganized itself around your child\'s needs. Routines, therapy schedules, school choices — the logistics are real. But so are the moments of unexpected joy, connection, and growth.',
-    entry: 'g2m1',
-    moments: [
-      {
-        id: 'g2m1',
-        question: 'How has your daily life changed since the diagnosis?',
-        choices: [
-          { id: 'a', label: 'We built strong routines', emoji: '📅', next: 'g2m2',
-            insight: 'Structure is one of the most powerful gifts you can give a child with ASD. Document what works: the morning sequence, calming rituals, the dinner routine. These are gold for caregivers, teachers, and grandparents.' },
-          { id: 'b', label: 'Still figuring it out', emoji: '🔄', next: 'g2m2',
-            insight: 'Most families take 1–3 years to find their rhythm. Visual schedules, predictable transitions, and sensory-friendly environments help — but the "right" routine is the one that works for your specific child. Permission to experiment.' },
-          { id: 'c', label: 'It\'s often chaotic', emoji: '🌀', next: null,
-            insight: 'If daily life feels unmanageable, look into respite care (breaks for parents), in-home support workers, and parent training programs. Stabilising daily life comes first — you shouldn\'t have to hold this alone.' },
-        ]
-      },
-      {
-        id: 'g2m2',
-        question: 'How are siblings handling life with an ASD brother or sister?',
-        choices: [
-          { id: 'a', label: 'They\'re understanding and close', emoji: '❤️', next: null,
-            insight: 'Siblings who grow up alongside an ASD sibling often develop extraordinary empathy and resilience. Make sure they also have space to be kids — their own activities, their own one-on-one time with you.' },
-          { id: 'b', label: 'They struggle sometimes', emoji: '😔', next: null,
-            insight: 'Sibling struggles are completely normal. They may feel overlooked, frustrated, or embarrassed — all valid feelings. Sibshops (support groups for siblings) can be transformative. Regular one-on-one time with each child matters enormously.' },
-          { id: 'c', label: 'No siblings', emoji: '👶', next: null,
-            insight: 'Some parents wonder about having more children. There is a small increased genetic risk for ASD in subsequent siblings (around 10–20%). Genetic counseling can help you think through this if it\'s on your mind.' },
-        ]
-      },
-    ],
-  },
-  {
-    id: 'g3', emoji: '🌿', label: 'Growing Up',
-    sub: 'Identity, school & friendships', ageRange: '8 – 14', minAge: 8, maxAge: 14,
-    description: 'Your child is developing their own sense of who they are. School is social as well as academic. Friendships — and the lack of them — become more visible. You\'re getting to know a person, not just a child.',
-    entry: 'g3m1',
-    moments: [
-      {
-        id: 'g3m1',
-        question: 'Does your child know about their autism?',
-        choices: [
-          { id: 'a', label: 'Yes — we talk openly', emoji: '💬', next: 'g3m2',
-            insight: 'Children who understand their own autism develop better self-advocacy and self-esteem. Keep the conversation ongoing and age-appropriate. Books like "The Reason I Jump" can open wonderful conversations.' },
-          { id: 'b', label: 'They sense they\'re different', emoji: '🔍', next: 'g3m2',
-            insight: 'Many children this age are aware they experience the world differently, even without knowing the word "autism." This gap can lead to anxiety or shame. Gently bridging toward an honest conversation — on their timeline — is usually kinder than waiting.' },
-          { id: 'c', label: 'We haven\'t told them yet', emoji: '⏳', next: 'g3m2',
-            insight: 'Most autism experts now recommend telling children about their diagnosis, typically between ages 6–10. Keeping it secret can lead to confusion and low self-esteem. There is no perfect moment — but sooner is usually kinder.' },
-        ]
-      },
-      {
-        id: 'g3m2',
-        question: 'How is your relationship with your partner holding up?',
-        choices: [
-          { id: 'a', label: 'We\'ve grown closer', emoji: '💑', next: 'g3m3',
-            insight: 'Some couples find that raising an ASD child deepens their partnership. Make space to appreciate each other — not just as co-parents, but as partners. Shared purpose is powerful.' },
-          { id: 'b', label: 'It\'s been a strain', emoji: '⚖️', next: 'g3m3',
-            insight: 'The stress is real. Couples therapy with a therapist who understands parental stress can help. Even 30 minutes of scheduled time together after bedtime makes a meaningful difference over months.' },
-          { id: 'c', label: 'I\'m parenting solo', emoji: '🦸', next: 'g3m3',
-            insight: 'Single parents of ASD children carry an extraordinary load. Lean into your support network. Many communities have programs specifically for single parents of children with disabilities — they\'re worth finding.' },
-        ]
-      },
-      {
-        id: 'g3m3',
-        question: 'How do you talk to people outside your family about your child?',
-        choices: [
-          { id: 'a', label: 'Openly — we don\'t hide it', emoji: '🗣️', next: null,
-            insight: 'Openness tends to build more understanding and support around your family. It also models self-acceptance for your child. The families who share openly often find their social worlds expand rather than shrink.' },
-          { id: 'b', label: 'Selectively — case by case', emoji: '🎯', next: null,
-            insight: 'This is the most common approach, and a wise one. You learn who responds with empathy and who doesn\'t. Over time you build a circle of people who "get it" — and those relationships become invaluable.' },
-          { id: 'c', label: 'We tend to stay private', emoji: '🔒', next: null,
-            insight: 'Privacy is a valid choice, especially where stigma is real. But isolation has real costs too. Consider letting one trusted person in fully. Having someone who knows your whole story matters more than you might expect.' },
-        ]
-      },
-    ],
-  },
-  {
-    id: 'g4', emoji: '🔄', label: 'Adolescence',
-    sub: 'Identity, future & big questions', ageRange: '12 – 18', minAge: 12, maxAge: 18,
-    description: 'Puberty amplifies everything — sensory sensitivities, emotional intensity, social complexity. Your teenager is asking who they are, where they belong, and what their future holds. These are big questions. You don\'t need all the answers.',
-    entry: 'g4m1',
-    moments: [
-      {
-        id: 'g4m1',
-        question: 'How is your teen relating to their autism identity?',
-        choices: [
-          { id: 'a', label: 'They\'ve embraced it', emoji: '🌈', next: 'g4m2',
-            insight: 'More and more young autistic people are finding their identity and each other through neurodiversity communities. If your teen has embraced their autism, that\'s not just okay — it\'s genuinely protective for their mental health.' },
-          { id: 'b', label: 'They struggle with it', emoji: '🌊', next: 'g4m2',
-            insight: 'Many autistic teenagers go through periods of anger, grief, or shame about their diagnosis. This is developmentally normal — and a mental health signal to take seriously. An autistic-affirming therapist can be transformative at this stage.' },
-          { id: 'c', label: 'They avoid the topic', emoji: '🚪', next: 'g4m2',
-            insight: 'Avoidance often signals the topic feels loaded with shame or fear. Don\'t push, but don\'t abandon the conversation either. Try "side-door" approaches: a documentary about autistic adults, connection with a positive autistic role model.' },
-        ]
-      },
-      {
-        id: 'g4m2',
-        question: 'What does your teen\'s social world look like?',
-        choices: [
-          { id: 'a', label: 'A few meaningful friendships', emoji: '🤝', next: null,
-            insight: 'Depth over breadth is often the autistic social style — and that\'s not a deficit, it\'s a strength. One or two genuine friendships provide more wellbeing than a large social network. Celebrate and protect the friendships that exist.' },
-          { id: 'b', label: 'Mostly online connections', emoji: '💻', next: null,
-            insight: 'Online communities have been life-changing for many autistic people — shared interests, lower sensory load, more control over communication. Online friendships count. Help them navigate safely.' },
-          { id: 'c', label: 'Very isolated', emoji: '🏝️', next: null,
-            insight: 'Social isolation in adolescence is a real mental health risk. Look for interest-based groups rather than "social skills" programs — robotics clubs, anime communities, gaming groups. Shared passion is the best connector.' },
-        ]
-      },
-    ],
-  },
-  {
-    id: 'g5', emoji: '🌟', label: 'Becoming Adult',
-    sub: 'Transition, rights & independence', ageRange: '17 – 23', minAge: 17, maxAge: 23,
-    description: 'The legal and practical landscape shifts enormously at 18. Your child becomes an adult in the eyes of the law. This is one of the most logistically intense stages for families — and one of the most important to plan for.',
-    entry: 'g5m1',
-    moments: [
-      {
-        id: 'g5m1',
-        question: 'What does independence look like for your young adult?',
-        choices: [
-          { id: 'a', label: 'Fully or mostly independent', emoji: '🌟', next: 'g5m2',
-            insight: 'Many autistic adults live fully independent lives — with strategies tailored to their needs. Continue building self-advocacy skills: the ability to understand and communicate one\'s own needs is one of the most valuable things an autistic adult can develop.' },
-          { id: 'b', label: 'Will need supported living', emoji: '🏠', next: 'g5m2',
-            insight: 'Supported living varies enormously. Research your state\'s waiver programs (like Medicaid HCBS waivers) early — waitlists can be years long. Start the process before age 18.' },
-          { id: 'c', label: 'Still figuring it out', emoji: '🗺️', next: 'g5m2',
-            insight: 'Many families are still navigating this at 17–18, and that\'s okay. Connect with a transition specialist through the IEP process — post-secondary planning should begin at age 14. Adult disability services in your state are your next key resource.' },
-        ]
-      },
-      {
-        id: 'g5m2',
-        question: 'Have you started planning for the long-term future?',
-        choices: [
-          { id: 'a', label: 'Yes — we have a plan', emoji: '📋', next: null,
-            insight: 'Families who plan legally and financially reduce uncertainty for their child enormously. Make sure you have a special needs trust, a letter of intent (your child\'s story for future caregivers), and clear guardianship arrangements.' },
-          { id: 'b', label: 'Thought about it, haven\'t acted', emoji: '⏳', next: null,
-            insight: 'The gap between thinking and doing is where most families get stuck. Pick one thing: schedule a meeting with a special needs attorney. That single action tends to unlock everything else.' },
-          { id: 'c', label: 'Too hard to think about', emoji: '💙', next: null,
-            insight: '"Who will care for my child when I\'m gone" is one of the most emotionally difficult questions a parent can face. Families who face it — even imperfectly — feel enormous relief. Consider bringing a trusted person into the conversation.' },
-        ]
-      },
-    ],
-  },
-  {
-    id: 'g6', emoji: '🏡', label: 'Adult Life',
-    sub: 'Work, home & flourishing', ageRange: '22 – 40', minAge: 22, maxAge: 40,
-    description: 'Your child is an adult now. Life has its own rhythm — work, routines, relationships, passions. Your role has shifted from manager to supporter. The goal is a life worth living, defined on their own terms.',
-    entry: 'g6m1',
-    moments: [
-      {
-        id: 'g6m1',
-        question: 'Where does your adult child live?',
-        choices: [
-          { id: 'a', label: 'With us at home', emoji: '🏠', next: 'g6m2',
-            insight: 'Many autistic adults live with family — and for some, this is genuinely the right fit. Make sure your adult child has as much agency as possible: their own space, their own schedule, their own decisions. Independence isn\'t only about where you live.' },
-          { id: 'b', label: 'Supported living', emoji: '🏘️', next: 'g6m2',
-            insight: 'Supported living varies enormously in quality. Visit regularly, know the staff, stay involved. Your adult child\'s voice about their preferences and experiences matters most.' },
-          { id: 'c', label: 'Semi-independently', emoji: '🌟', next: 'g6m2',
-            insight: 'Semi-independent living with some support services is a growing model. Technology — smart home devices, reminder apps, video calls — can extend independence significantly.' },
-        ]
-      },
-      {
-        id: 'g6m2',
-        question: 'What brings your adult child the most joy?',
-        choices: [
-          { id: 'a', label: 'Their special interests', emoji: '⭐', next: null,
-            insight: 'Special interests are not just hobbies — for many autistic people they are central to identity and wellbeing. A life built around one\'s passions is a good life. Many autistic adults have found meaningful work and community through their interests.' },
-          { id: 'b', label: 'Routine and structure', emoji: '📅', next: null,
-            insight: 'For many autistic adults, a predictable, structured life is genuinely satisfying — not a limitation. Stable routines reduce anxiety and create the foundation for other pleasures. Honor this rather than pushing for variety for its own sake.' },
-          { id: 'c', label: 'Family connection', emoji: '❤️', next: null,
-            insight: 'Family remains central for many autistic adults. Regular family time — structured, predictable, centered around shared activities — is deeply valuable. You\'re not just a support system; you\'re the people they love.' },
-        ]
-      },
-    ],
-  },
-  {
-    id: 'g7', emoji: '♾️', label: 'Long-term',
-    sub: 'Legacy & lifetime planning', ageRange: '40+', minAge: 40, maxAge: 999,
-    description: 'This is the stage most parents never want to think about — and the one that matters most to plan for. What happens when you can no longer be your child\'s primary support? The answer to that question is the most important gift you can give them.',
-    entry: 'g7m1',
-    moments: [
-      {
-        id: 'g7m1',
-        question: 'Who will advocate for your adult child in the future?',
-        choices: [
-          { id: 'a', label: 'A sibling or family member', emoji: '👨‍👩‍👧', next: null,
-            insight: 'Sibling caregivers are often deeply committed. But "willing" isn\'t the same as "prepared." Bring your chosen future caregiver into planning conversations now. Share the letter of intent, the financial plan, the daily support needs.' },
-          { id: 'b', label: 'A professional guardian', emoji: '⚖️', next: null,
-            insight: 'Professional guardians and trustees can be appropriate, especially when family isn\'t available. Look for providers with specific autism experience. Get references, visit programs, and include your adult child\'s preferences in the planning.' },
-          { id: 'c', label: 'Haven\'t figured this out yet', emoji: '💭', next: null,
-            insight: 'This is the most important unanswered question in special needs planning. A special needs estate planning attorney can walk you through options — and help you build a plan that gives your child security for life. Please don\'t leave it unanswered.' },
-        ]
-      },
-    ],
-  },
-];
+// ── Question-tree helpers ─────────────────────────────────────────────
 
-// ── Route actions ─────────────────────────────────────────────────────
-// Every answer maps to one concrete next step. Keyed `${momentId}${choiceId}`
-// (moment ids are globally unique). These become the personal route.
-const GPS_ACTIONS = {
-  g1m1a: { title: 'Connect with other ASD parents', detail: 'Join a local or online parent support group this week. Hearing from parents a few steps ahead of you brings more clarity than any book.' },
-  g1m1b: { title: 'Set up your family systems', detail: 'Use your current energy well: build the routine calendar, organize paperwork, book upcoming appointments — and schedule one rest day for yourself to protect against later burnout.' },
-  g1m1c: { title: 'Get support for yourself first', detail: 'Ask your doctor about parent support groups and respite care options. Book one hour this week that is only for you.' },
-  g1m2a: { title: 'Give family a shared foundation', detail: 'Pick one gentle resource — like "Ten Things Every Child with Autism Wishes You Knew" — and share it with grandparents and siblings.' },
-  g1m2b: { title: 'Plan one honest conversation', detail: 'Choose the family member who matters most and set up a calm one-on-one talk. An autism-informed family therapist can help open the hardest conversations.' },
-  g1m2c: { title: 'Find your community online', detail: 'Join an ASD-parents community (Autism Society forums, local parent groups) and introduce yourself. You don\'t have to discover this alone.' },
-  g2m1a: { title: 'Document what works', detail: 'Write down your morning sequence, calming rituals and dinner routine so caregivers, teachers and grandparents can follow them.' },
-  g2m1b: { title: 'Try one visual schedule', detail: 'Pick the hardest part of the day and test a simple picture schedule for two weeks. Permission to experiment — the "right" routine is the one that works for your child.' },
-  g2m1c: { title: 'Apply for respite care', detail: 'Look up respite care and in-home support programs in your area and start one application this week. Stabilising daily life comes first.' },
-  g2m2a: { title: 'Protect sibling one-on-one time', detail: 'Put a recurring "just us" hour with each sibling into the family calendar — they need space to just be kids.' },
-  g2m2b: { title: 'Find a sibling support group', detail: 'Search for Sibshops or similar sibling groups nearby and book a first session. Their feelings are valid and deserve their own space.' },
-  g2m2c: { title: 'Talk to a genetic counselor', detail: 'If more children are on your mind, book a genetic counseling consult to think through the numbers calmly.' },
-  g3m1a: { title: 'Keep the conversation alive', detail: 'Pick an age-appropriate book or video about autism to enjoy together this month — like "The Reason I Jump".' },
-  g3m1b: { title: 'Prepare the conversation', detail: 'Gather the words, books and examples you\'d use, so you\'re ready to gently name autism on your child\'s timeline.' },
-  g3m1c: { title: 'Plan the disclosure talk', detail: 'Most experts recommend telling children between ages 6–10. Choose a calm moment in the coming weeks and prepare a simple, positive explanation.' },
-  g3m2a: { title: 'Schedule partner time', detail: 'Protect one evening a month that is about you two — not logistics, not therapy schedules.' },
-  g3m2b: { title: 'Book couples support', detail: 'Find a therapist familiar with special-needs parenting stress. Even 30 minutes of scheduled time together after bedtime helps over months.' },
-  g3m2c: { title: 'Map your support network', detail: 'List three people or services you can call on, and look up programs for single parents of children with disabilities in your community.' },
-  g3m3a: { title: 'Build your ally circle', detail: 'Identify the teachers, neighbors and friends who "get it" and keep them in the loop — they are your infrastructure.' },
-  g3m3b: { title: 'Prepare a short explanation', detail: 'Write a two-sentence description of your child\'s needs you can use when it serves them — at school, activities, or travel.' },
-  g3m3c: { title: 'Let one trusted person in', detail: 'Choose one person and share the full story with them. Having someone who knows everything matters more than you might expect.' },
-  g4m1a: { title: 'Connect them with community', detail: 'Help your teen find neurodiversity communities or a positive autistic role model or mentor.' },
-  g4m1b: { title: 'Find an affirming therapist', detail: 'Look for an autistic-affirming therapist. Teenage grief or shame about the diagnosis is a mental-health signal worth acting on.' },
-  g4m1c: { title: 'Try a side-door approach', detail: 'Watch a documentary or series featuring autistic adults together — no pressure, no big talk, just exposure.' },
-  g4m2a: { title: 'Protect the friendships', detail: 'Make hangouts easy: rides, predictable plans, a sensory-friendly place. One or two genuine friendships are worth protecting.' },
-  g4m2b: { title: 'Make online life safe', detail: 'Talk through privacy and safety rules together — and treat online friends as real friends, because they are.' },
-  g4m2c: { title: 'Find one interest-based group', detail: 'Search for a club around their passion — gaming, anime, robotics — and try one meeting. Shared passion is the best connector.' },
-  g5m1a: { title: 'Build self-advocacy skills', detail: 'Practice together how to explain their needs at college, at work, and at the doctor\'s office.' },
-  g5m1b: { title: 'Apply for waiver programs', detail: 'Research your state\'s Medicaid HCBS waivers now — waitlists can run years. Start the process before age 18.' },
-  g5m1c: { title: 'Meet a transition specialist', detail: 'Request a transition-planning meeting through the IEP process this semester. Post-secondary planning should already be underway.' },
-  g5m2a: { title: 'Review the plan yearly', detail: 'Put an annual review of the special needs trust, letter of intent and guardianship arrangements into your calendar.' },
-  g5m2b: { title: 'Book the attorney meeting', detail: 'Schedule one meeting with a special needs attorney. That single action tends to unlock everything else.' },
-  g5m2c: { title: 'Start with one conversation', detail: 'Invite one trusted person into the "what comes after us" topic. You don\'t have to plan alone — you just have to start.' },
-  g6m1a: { title: 'Grow agency at home', detail: 'Give your adult child one new domain to fully own — their schedule, their meals, a personal budget.' },
-  g6m1b: { title: 'Stay actively involved', detail: 'Set a regular visiting rhythm, know the staff by name, and keep your adult child\'s own preferences at the center.' },
-  g6m1c: { title: 'Add supportive tech', detail: 'Set up reminder apps, smart-home helpers and a video-call routine that quietly extend independence.' },
-  g6m2a: { title: 'Invest in the passion', detail: 'Find a community, course or work opportunity built around their special interest — for many autistic adults it\'s the center of a good life.' },
-  g6m2b: { title: 'Stabilize the routine', detail: 'Protect the weekly structure and plan any changes well in advance, together. Predictability is a foundation, not a limitation.' },
-  g6m2c: { title: 'Ritualize family time', detail: 'Make family time predictable: same day, same shared activity, something to look forward to.' },
-  g7m1a: { title: 'Prepare the future advocate', detail: 'Bring your chosen family member into planning now: share the letter of intent, the finances and the daily-support details.' },
-  g7m1b: { title: 'Vet the professional guardian', detail: 'Interview candidates with autism experience, check references, visit their programs — and include your adult child\'s preferences.' },
-  g7m1c: { title: 'See an estate planning attorney', detail: 'Book a special-needs estate planning consult. It\'s the most important unanswered question — and it\'s answerable.' },
-};
-
-function stageStatus(stage, childAge) {
-  if (childAge > stage.maxAge) return 'past';
-  if (childAge >= stage.minAge) return 'current';
-  return 'future';
+function gpsFlatQuestions(milestone) {
+  const out = [];
+  const walk = (q) => { out.push(q); (q.children || []).forEach(walk); };
+  milestone.questions.forEach(walk);
+  return out;
 }
 
-// Index of the stage that matches the child's current age (first stage whose
-// range still includes — or lies ahead of — the child). Anchors "You are here".
-function currentStageIndex(childAge) {
-  for (let i = 0; i < GPS_STAGES.length; i++) {
-    if (childAge <= GPS_STAGES[i].maxAge) return i;
+function gpsAnsweredCount(milestone, answers) {
+  return gpsFlatQuestions(milestone).filter(q => answers[q.id]).length;
+}
+
+// A milestone's screening pass is done when every Level 1 root is answered.
+function gpsRootsAnswered(milestone, answers) {
+  return milestone.questions.every(q => answers[q.id]);
+}
+
+function gpsOpenCritical(milestone, answers) {
+  return milestone.questions.filter(q => !answers[q.id]);
+}
+
+// Cascade questions from the previous milestone that the family marked
+// "No" / "Not sure" — they resurface here as top-level questions.
+function gpsCarriedQuestions(mIndex, answers) {
+  if (mIndex === 0) return [];
+  const prev = GPS_MILESTONES[mIndex - 1];
+  return gpsFlatQuestions(prev).filter(q => q.cascade && GPS_OPEN_ANSWERS.has(answers[q.id]));
+}
+
+// Index of the milestone anchoring "you are here" for the child's age.
+function currentMilestoneIndex(childAge) {
+  for (let i = 0; i < GPS_MILESTONES.length; i++) {
+    if (childAge <= GPS_MILESTONES[i].maxAge) return i;
   }
-  return GPS_STAGES.length - 1;
+  return GPS_MILESTONES.length - 1;
 }
 
-// Walk a stage's branch following the parent's answers.
-// Returns { steps:[{moment, choiceId, choice}], nextMoment|null, complete }.
-function stagePath(stage, answers) {
-  const steps = [];
-  let momentId = stage.entry;
-  const seen = new Set();
-  while (momentId && !seen.has(momentId)) {
-    seen.add(momentId);
-    const moment = stage.moments.find(m => m.id === momentId);
-    if (!moment) break;
-    const choiceId = answers[`${stage.id}_${moment.id}`];
-    if (!choiceId) {
-      return { steps, nextMoment: moment, complete: false };
+// ── Simulated AI layer ────────────────────────────────────────────────
+// Placeholder for the real LLM: it already uses the same inputs the live
+// model will get (child profile + the family's answers), so swapping in an
+// API call later only means replacing this function.
+
+function gpsAIReply(child, scope, answers, turn) {
+  const milestones = scope.milestone ? [scope.milestone] : GPS_MILESTONES;
+  const name = child.name, age = child.age;
+
+  const flags = [], open = [], wins = [];
+  milestones.forEach(m => {
+    gpsFlatQuestions(m).forEach(q => {
+      const a = answers[q.id];
+      if (!a && q.level === 1) open.push({ q, m });
+      else if (a === 'no' || a === 'unsure') flags.push({ q, m, a });
+      else if (a === 'yes' && q.level === 1) wins.push({ q, m });
+    });
+  });
+
+  const answeredAny = flags.length + wins.length > 0 ||
+    milestones.some(m => gpsAnsweredCount(m, answers) > 0);
+
+  const openers = [
+    `Here's what stands out for ${name} (age ${age}) right now:`,
+    `Looking at ${name}'s profile and your answers:`,
+    `Good question — here's my read based on what you've shared so far:`,
+  ];
+  const p = [openers[turn % openers.length]];
+
+  if (!answeredAny) {
+    p.push(scope.milestone
+      ? `I don't have your answers for ${scope.milestone.label} yet. Tap through the questions above — even quick "Not sure" answers help me point you to what matters most for ${name}.`
+      : `You haven't answered questions on the path yet. Open the stage marked "you are here" and tap through a few — I'll get much more specific.`);
+  } else {
+    if (flags.length) {
+      const top = flags.slice(0, 3);
+      p.push('The biggest gaps you\'ve flagged:\n' + top.map(f =>
+        `• ${f.q.text} — you said "${f.a === 'no' ? 'No' : 'Not sure'}"${scope.milestone ? '' : ` (${f.m.label})`}`
+      ).join('\n'));
+      const why = top.find(f => f.q.why);
+      if (why) p.push(`Why it matters: ${why.q.why}`);
     }
-    const choice = moment.choices.find(c => c.id === choiceId);
-    steps.push({ moment, choiceId, choice });
-    momentId = choice ? choice.next : null;
+    if (open.length) {
+      p.push(`There ${open.length === 1 ? 'is 1 key screening question' : `are ${open.length} key screening questions`} you haven't looked at yet — starting with "${open[0].q.text}"`);
+    }
+    if (wins.length && flags.length) {
+      p.push(`Already in good shape: "${wins[0].q.text}" — keep that going.`);
+    }
+    if (!flags.length && !open.length) {
+      p.push(`You've worked through ${scope.milestone ? 'this stage' : 'the path'} — nothing is unresolved right now. I'd revisit these answers whenever something changes at school, at home, or with services.`);
+    }
   }
-  return { steps, nextMoment: null, complete: true };
+
+  const next = GPS_MILESTONES.find(m => m.minAge > age);
+  if (next && !scope.milestone) {
+    p.push(`Coming up for ${name}: ${next.emoji} ${next.label} (${next.trigger}). The earlier you start, the calmer it goes.`);
+  }
+  p.push('Want me to turn any of this into concrete next steps?');
+  return p.join('\n\n');
 }
 
-// ── GPS Timeline (age-anchored branching life-path tree) ──────────────
-function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
-  // When embedded (inside AssistantScreen's Screen + header) the status-bar
-  // space is already handled by the parent, so we skip the top padding.
-  const topPad = embedded ? 8 : 54;
-  const childAge = child ? child.age : 10;
-  const currentIndex = currentStageIndex(childAge);
+// ── Answer chips ──────────────────────────────────────────────────────
 
-  // All GPS progress (answers + completed route steps, per child) lives in one
-  // localStorage blob so it survives sessions and child switches.
+const GPS_ANSWER_COLORS = { yes: T.green, no: T.red, unsure: T.yellow, na: T.muted };
+
+function AnswerChips({ q, answers, onAnswer }) {
+  const current = answers[q.id];
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+      {GPS_ANSWER_OPTIONS.map(opt => {
+        const sel = current === opt.id;
+        const c = GPS_ANSWER_COLORS[opt.id];
+        return (
+          <button key={opt.id} onClick={() => onAnswer(q, sel ? null : opt.id)} style={{
+            height: 32, padding: '0 12px', borderRadius: 999, cursor: 'pointer',
+            fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700,
+            border: sel ? 'none' : `1.5px solid ${T.line}`,
+            background: sel ? c : '#fff',
+            color: sel ? '#fff' : T.ink2,
+            display: 'flex', alignItems: 'center', gap: 5,
+            transition: 'all .12s',
+          }}>
+            <span style={{ fontSize: 12 }}>{opt.emoji}</span>{opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// One question card. Answering it reveals its child questions (next level).
+function QuestionNode({ q, answers, onAnswer, depth = 0 }) {
+  const [whyOpen, setWhyOpen] = React.useState(false);
+  const answered = answers[q.id];
+  const riskDot = q.risk === 'critical' ? T.red : q.risk === 'high' ? T.yellow : T.line;
+  return (
+    <div style={{ marginLeft: depth ? 16 : 0 }}>
+      <div style={{
+        background: '#fff', borderRadius: 16, padding: '13px 15px', marginBottom: 8,
+        border: `1.5px solid ${answered ? 'rgba(45,106,79,0.25)' : T.line}`,
+        boxShadow: depth
+          ? `inset 3px 0 0 ${T.mint}, 0 2px 8px rgba(27,36,33,0.04)`
+          : '0 2px 8px rgba(27,36,33,0.04)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ width: 7, height: 7, borderRadius: 999, background: riskDot, flexShrink: 0, marginTop: 6 }}/>
+          <div style={{ flex: 1 }}>
+            {depth > 0 && (
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: T.muted, letterSpacing: '0.06em', marginBottom: 3 }}>
+                LEVEL {q.level}
+              </div>
+            )}
+            <div style={{ fontSize: depth ? 13.5 : 14.5, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>
+              {q.text}
+            </div>
+            {q.why && (
+              <button onClick={() => setWhyOpen(o => !o)} style={{
+                marginTop: 5, padding: 0, border: 'none', background: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: 11.5, fontWeight: 700, color: T.green,
+              }}>
+                {whyOpen ? '▾ Why this matters' : '▸ Why this matters'}
+              </button>
+            )}
+            {q.why && whyOpen && (
+              <div style={{ fontSize: 12, color: T.ink2, lineHeight: 1.5, marginTop: 4 }}>{q.why}</div>
+            )}
+            <AnswerChips q={q} answers={answers} onAnswer={onAnswer}/>
+          </div>
+        </div>
+      </div>
+      {answered && (q.children || []).map(c => (
+        <QuestionNode key={c.id} q={c} answers={answers} onAnswer={onAnswer} depth={depth + 1}/>
+      ))}
+    </div>
+  );
+}
+
+// ── GPS map (age-anchored milestone path) ─────────────────────────────
+
+function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
+  // When embedded the status-bar space is already handled by the parent.
+  const topPad = embedded ? 8 : (window.ATYP_MOBILE ? 12 : 54);
+  const childAge = child ? child.age : 10;
+  const currentIndex = currentMilestoneIndex(childAge);
+
+  // All GPS progress (answers per child) lives in one localStorage blob.
   const childId = child ? child.id : 'default';
   const [gpsStore, setGpsStore] = React.useState(() => {
-    try { return JSON.parse(localStorage.getItem('atyp_gps')) || {}; } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem('atyp_gps_v2')) || {}; } catch { return {}; }
   });
   React.useEffect(() => {
-    try { localStorage.setItem('atyp_gps', JSON.stringify(gpsStore)); } catch {}
+    try { localStorage.setItem('atyp_gps_v2', JSON.stringify(gpsStore)); } catch {}
   }, [gpsStore]);
-  const answers   = (gpsStore[childId] || {}).answers || {};
-  const doneSteps = (gpsStore[childId] || {}).done || {};
-  const updateChild = (fn) => setGpsStore(prev => ({ ...prev, [childId]: fn(prev[childId] || {}) }));
+  const answers = (gpsStore[childId] || {}).answers || {};
 
-  // sheetStage: the stage whose question sheet (bottom popup) is open, or null.
-  const [sheetStage, setSheetStage] = React.useState(null);
-  // Whether the route (next steps) bottom sheet is open.
+  const [sheetIndex, setSheetIndex] = React.useState(null); // milestone sheet
   const [showSummary, setShowSummary] = React.useState(false);
-  // Which route step card is expanded inside the route sheet.
-  const [expandedStep, setExpandedStep] = React.useState(null);
+  // AI chat: null | { milestone } | { path: true }
+  const [aiScope, setAiScope] = React.useState(null);
 
-  // Saving an answer may re-route the branch. Prune any answers that belonged
-  // to moments past the one being (re)answered, so stale cards don't linger.
-  const saveAnswer = (stage, momentId, choiceId) => {
-    updateChild(cur => {
-      const next = { ...(cur.answers || {}), [`${stage.id}_${momentId}`]: choiceId };
-      const live = new Set();
-      let mId = stage.entry;
-      const seen = new Set();
-      while (mId && !seen.has(mId)) {
-        seen.add(mId);
-        const moment = stage.moments.find(m => m.id === mId);
-        if (!moment) break;
-        const key = `${stage.id}_${mId}`;
-        live.add(key);
-        const cId = next[key];
-        if (!cId) break;
-        const choice = moment.choices.find(c => c.id === cId);
-        mId = choice ? choice.next : null;
+  const saveAnswer = (q, optionId) => {
+    setGpsStore(prev => {
+      const cur = prev[childId] || {};
+      const next = { ...(cur.answers || {}) };
+      if (optionId) next[q.id] = optionId;
+      else {
+        // Un-answering hides the sub-questions again — drop their answers too.
+        delete next[q.id];
+        const dropChildren = (node) => (node.children || []).forEach(c => { delete next[c.id]; dropChildren(c); });
+        dropChildren(q);
       }
-      Object.keys(next).forEach(k => {
-        if (k.startsWith(`${stage.id}_`) && !live.has(k)) delete next[k];
-      });
-      return { ...cur, answers: next };
+      return { ...prev, [childId]: { ...cur, answers: next } };
     });
   };
 
-  const toggleStep = (key) => updateChild(cur => ({
-    ...cur, done: { ...(cur.done || {}), [key]: !(cur.done || {})[key] },
+  // Per-milestone state + progressive unlock.
+  const msState = GPS_MILESTONES.map((m, i) => ({
+    m,
+    total: gpsFlatQuestions(m).length,
+    answered: gpsAnsweredCount(m, answers),
+    rootsDone: gpsRootsAnswered(m, answers),
+    carried: gpsCarriedQuestions(i, answers),
   }));
+  const unlocked = GPS_MILESTONES.map((_, i) => i <= currentIndex || msState[i - 1].rootsDone);
+  const total = GPS_MILESTONES.length;
+  const exploredCount = msState.filter(s => s.answered > 0).length;
+  const answeredTotal = msState.reduce((n, s) => n + s.answered, 0);
+  const questionsTotal = msState.reduce((n, s) => n + s.total, 0);
 
-  // Precompute branch state + progressive unlock for every stage.
-  const stageState = GPS_STAGES.map(stage => ({ stage, path: stagePath(stage, answers) }));
-  // Stages up to & including the current age stage are open immediately;
-  // future stages unlock once the stage before them is complete.
-  const unlocked = GPS_STAGES.map((_, i) => i <= currentIndex || stageState[i - 1].path.complete);
-  const hereIndex = currentIndex;
-
-  const total = GPS_STAGES.length;
-  const exploredCount = stageState.filter(s => s.path.steps.length > 0).length;
-
-  // ── Question sheet — steps through the active stage's questions one at a
-  //    time as a bottom popup. saveAnswer advances the branch automatically. ─
-  const questionSheet = sheetStage ? (() => {
-    const stage = sheetStage;
-    const path = stagePath(stage, answers);
-    const moment = path.nextMoment;
-    const done = !moment;
+  // ── Milestone sheet — Now / Planning tracks + carried-over questions ──
+  const questionSheet = sheetIndex !== null ? (() => {
+    const { m, total: qTotal, answered, carried } = msState[sheetIndex];
+    const nowQs = m.questions.filter(q => q.timing === 'current');
+    const futureQs = m.questions.filter(q => q.timing === 'future');
+    const sectionTitle = (label, hint) => (
+      <div style={{ margin: '18px 0 8px' }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: T.green, letterSpacing: '0.06em' }}>{label}</div>
+        <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{hint}</div>
+      </div>
+    );
     return (
       <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-        <div onClick={() => setSheetStage(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
-        <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 32px', maxHeight: '88%', overflowY: 'auto', animation: 'atypSheetUp .28s ease' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
-            <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: 14 }}>
-            <span style={{ fontSize: 20 }}>{stage.emoji}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink }}>{stage.label}</div>
-              <div style={{ fontSize: 11.5, color: T.muted }}>{stage.sub} · {stage.ageRange}</div>
+        <div onClick={() => setSheetIndex(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+        <div style={{ position: 'relative', background: T.bg, borderRadius: '22px 22px 0 0', maxHeight: '90%', display: 'flex', flexDirection: 'column', animation: 'atypSheetUp .28s ease' }}>
+          <div style={{ padding: '0 18px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
             </div>
-            <button onClick={() => setSheetStage(null)} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: 10 }}>
+              <span style={{ fontSize: 22 }}>{m.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: T.ink }}>{m.label}</div>
+                <div style={{ fontSize: 11.5, color: T.muted }}>{m.trigger} · {m.domain}</div>
+              </div>
+              <button onClick={() => setSheetIndex(null)} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'rgba(45,106,79,0.15)', overflow: 'hidden' }}>
+                <div style={{ width: `${Math.round((answered / qTotal) * 100)}%`, height: '100%', background: T.green, borderRadius: 99, transition: 'width .25s' }}/>
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.green, whiteSpace: 'nowrap' }}>{answered}/{qTotal} answered</div>
+            </div>
           </div>
 
-          {done ? (
-            <div style={{ padding: '8px 0 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-              <div style={{ width: 56, height: 56, borderRadius: 999, background: T.mint, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon.Check s={28} c="#fff" sw={2.8}/>
-              </div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: T.ink }}>Stage complete</div>
-              <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.5, maxWidth: 260 }}>
-                You've walked through {stage.label}. Your answers added new steps to your route — find it at the 🏁 flag.
-              </div>
-              <button onClick={() => setSheetStage(null)} style={{ marginTop: 6, width: '100%', height: 48, borderRadius: 14, border: 'none', background: T.green, color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Done</button>
-            </div>
-          ) : (
-            <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.green, letterSpacing: '0.04em', marginBottom: 6 }}>
-                QUESTION {path.steps.length + 1}
-              </div>
-              <div style={{ background: T.greenSoft, borderRadius: 16, padding: '14px 16px', marginBottom: 14 }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{moment.question}</div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {moment.choices.map(ch => (
-                  <button key={ch.id} onClick={() => {
-                    saveAnswer(stage, moment.id, ch.id);
-                    // Last question of the branch — close the sheet right away
-                    // and return to the map instead of showing a confirmation.
-                    if (!ch.next) setSheetStage(null);
-                  }} style={{
-                    width: '100%', background: '#fff', borderRadius: 16, padding: '14px 16px',
-                    border: `2px solid ${T.line}`,
-                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                    display: 'flex', gap: 14, alignItems: 'flex-start',
-                    boxShadow: '0 2px 8px rgba(27,36,33,0.05)',
-                    transition: 'border-color .14s',
-                  }}>
-                    <div style={{ fontSize: 24, flexShrink: 0, marginTop: 2 }}>{ch.emoji}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>{ch.label}</div>
-                    </div>
-                    <Icon.ChevronRight s={16} c={T.muted}/>
-                  </button>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 14px' }}>
+            <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, margin: '8px 0 2px' }}>{m.description}</div>
+
+            {carried.length > 0 && (
+              <>
+                <div style={{ margin: '16px 0 8px', background: '#FFF3D6', borderRadius: 14, padding: '10px 13px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#9C7A1A', letterSpacing: '0.05em' }}>CARRIED OVER FROM {GPS_MILESTONES[sheetIndex - 1].label.toUpperCase()}</div>
+                  <div style={{ fontSize: 11.5, color: '#7A6115', marginTop: 2, lineHeight: 1.45 }}>
+                    You marked these unresolved earlier — at this stage they become primary questions.
+                  </div>
+                </div>
+                {carried.map(q => (
+                  <QuestionNode key={`carry_${q.id}`} q={{ ...q, children: [] }} answers={answers} onAnswer={saveAnswer}/>
                 ))}
-              </div>
-              <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', marginTop: 12 }}>
-                There is no right answer — only your family's path.
-              </div>
-            </>
-          )}
+              </>
+            )}
+
+            {sectionTitle('NOW', 'Where things stand today')}
+            {nowQs.map(q => <QuestionNode key={q.id} q={q} answers={answers} onAnswer={saveAnswer}/>)}
+
+            {sectionTitle('PLANNING AHEAD', 'What to prepare before the next stage')}
+            {futureQs.map(q => <QuestionNode key={q.id} q={q} answers={answers} onAnswer={saveAnswer}/>)}
+
+            <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+              There is no right answer — only your family's path.
+            </div>
+          </div>
+
+          <div style={{ padding: '10px 18px 30px', flexShrink: 0, background: T.bg, borderTop: `1px solid ${T.line}` }}>
+            <button onClick={() => setAiScope({ milestone: m })} style={{
+              width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: 'pointer',
+              background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, color: '#fff',
+              fontFamily: 'inherit', fontSize: 15, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              boxShadow: '0 4px 14px rgba(45,106,79,0.28)',
+            }}>
+              <Icon.Sparkle s={17} c="#fff"/> Ask AI about this stage
+            </button>
+          </div>
         </div>
       </div>
     );
   })() : null;
 
-  // ── Personal route (Plan B: "Маршрут кроків") ─────────────────────────
-  // Every answered question contributes one concrete action. Steps from the
-  // current stage come first, then the road ahead, then revisited past stages.
-  const stageOrder = [];
-  for (let i = currentIndex; i < GPS_STAGES.length; i++) stageOrder.push(i);
-  for (let i = currentIndex - 1; i >= 0; i--) stageOrder.push(i);
-  const route = [];
-  stageOrder.forEach(i => {
-    const { stage, path } = stageState[i];
-    path.steps.forEach(({ moment, choiceId, choice }) => {
-      const action = GPS_ACTIONS[`${moment.id}${choiceId}`];
-      if (action) route.push({ key: `${stage.id}_${moment.id}`, stage, action, choice });
-    });
+  // ── Path summary (🏁) — progress + open critical topics per milestone ─
+  const openTopics = [];
+  msState.forEach((s, i) => {
+    if (i > currentIndex && s.answered === 0) return; // not there yet
+    gpsOpenCritical(s.m, answers).forEach(q => openTopics.push({ q, m: s.m }));
+    s.carried.forEach(q => openTopics.push({ q, m: s.m, carried: true }));
   });
-  const routeSteps = route.slice(0, 6);
-  const doneCount = routeSteps.filter(s => doneSteps[s.key]).length;
 
-  // ── Route sheet — the final node opens the personal step route. ───────
   const summarySheet = showSummary ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
       <div onClick={() => setShowSummary(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
-      <div style={{ position: 'relative', background: '#fff', borderRadius: '22px 22px 0 0', padding: '0 18px 32px', maxHeight: '88%', overflowY: 'auto', animation: 'atypSheetUp .28s ease' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
-          <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
-        </div>
-        <div style={{ fontSize: 19, fontWeight: 800, color: T.ink, letterSpacing: '-0.02em', marginTop: 6, marginBottom: 4 }}>
-          Your route
-        </div>
-        <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, marginBottom: 14 }}>
-          {routeSteps.length === 0
-            ? 'Your personal next steps, built from your answers.'
-            : `${routeSteps.length} step${routeSteps.length > 1 ? 's' : ''} from today — built from your answers on the map.`}
-        </div>
-        {routeSteps.length === 0 ? (
-          <div style={{ background: T.greenSoft, borderRadius: 14, padding: '18px 16px', fontSize: 13, color: T.ink2, lineHeight: 1.55, textAlign: 'center' }}>
-            Answer a few questions on the map — each answer adds a step to your family's route.
+      <div style={{ position: 'relative', background: T.bg, borderRadius: '22px 22px 0 0', maxHeight: '90%', display: 'flex', flexDirection: 'column', animation: 'atypSheetUp .28s ease' }}>
+        <div style={{ padding: '0 18px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
           </div>
-        ) : (
-          <>
-            {/* Route progress */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'rgba(45,106,79,0.15)', overflow: 'hidden' }}>
-                <div style={{ width: `${Math.round((doneCount / routeSteps.length) * 100)}%`, height: '100%', background: T.mint, borderRadius: 99, transition: 'width .25s' }}/>
-              </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.green, whiteSpace: 'nowrap' }}>
-                {doneCount}/{routeSteps.length} done
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {routeSteps.map((step, idx) => {
-                const isDone = !!doneSteps[step.key];
-                const isOpen = expandedStep === step.key;
-                return (
-                  <div key={step.key} style={{
-                    background: isDone ? T.greenSoft : '#fff', borderRadius: 16,
-                    border: `1.5px solid ${isDone ? T.mint : T.line}`,
-                    boxShadow: isDone ? 'none' : '0 2px 8px rgba(27,36,33,0.05)',
-                    transition: 'all .18s', overflow: 'hidden',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', cursor: 'pointer' }}
-                      onClick={() => setExpandedStep(isOpen ? null : step.key)}>
-                      {/* check circle */}
-                      <button onClick={(e) => { e.stopPropagation(); toggleStep(step.key); }} style={{
-                        width: 28, height: 28, borderRadius: 999, flexShrink: 0, marginTop: 1,
-                        border: isDone ? 'none' : `2px solid ${T.line}`,
-                        background: isDone ? T.mint : '#fff',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all .15s',
-                      }}>
-                        {isDone
-                          ? <Icon.Check s={15} c="#fff" sw={3}/>
-                          : <span style={{ fontSize: 11.5, fontWeight: 700, color: T.muted }}>{idx + 1}</span>}
-                      </button>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35,
-                          color: isDone ? T.muted : T.ink,
-                          textDecoration: isDone ? 'line-through' : 'none' }}>
-                          {step.action.title}
-                        </div>
-                        <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
-                          {step.stage.emoji} {step.stage.label} · {step.choice ? step.choice.label : ''}
-                        </div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: T.ink, letterSpacing: '-0.02em', marginTop: 6 }}>
+            Path summary
+          </div>
+          <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, marginTop: 2, marginBottom: 10 }}>
+            {answeredTotal} of {questionsTotal} questions answered across {child.name}'s path.
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 14px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {msState.map((s, i) => {
+              const openCrit = gpsOpenCritical(s.m, answers).length;
+              return (
+                <button key={s.m.id} onClick={() => { setShowSummary(false); setSheetIndex(i); }} style={{
+                  width: '100%', background: '#fff', borderRadius: 14, padding: '11px 13px',
+                  border: `1.5px solid ${T.line}`, cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
+                }}>
+                  <span style={{ fontSize: 18 }}>{s.m.emoji}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>{s.m.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'rgba(45,106,79,0.12)', overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.round((s.answered / s.total) * 100)}%`, height: '100%', background: T.green, borderRadius: 99 }}/>
                       </div>
-                      <div style={{ flexShrink: 0, marginTop: 4, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }}>
-                        <Icon.ChevronRight s={15} c={T.muted}/>
-                      </div>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: T.muted }}>{s.answered}/{s.total}</span>
                     </div>
-                    {isOpen && (
-                      <div style={{ padding: '0 14px 13px 54px' }}>
-                        <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.55 }}>{step.action.detail}</div>
-                        {step.choice && (
-                          <div style={{ fontSize: 11.5, color: T.muted, lineHeight: 1.5, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${isDone ? 'rgba(45,106,79,0.15)' : T.line}` }}>
-                            {step.choice.insight}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
-                );
-              })}
-            </div>
-            {doneCount === routeSteps.length && (
-              <div style={{ marginTop: 14, background: T.mintBg, borderRadius: 14, padding: '14px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: T.greenDeep }}>
-                🎉 Route complete — answer more questions to extend it.
+                  {s.answered > 0 && openCrit > 0 && (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: T.red, borderRadius: 999, padding: '3px 8px', flexShrink: 0 }}>
+                      {openCrit} open
+                    </span>
+                  )}
+                  <Icon.ChevronRight s={14} c={T.muted}/>
+                </button>
+              );
+            })}
+          </div>
+
+          {openTopics.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 800, color: T.green, letterSpacing: '0.06em', margin: '18px 0 8px' }}>
+                OPEN CRITICAL TOPICS
               </div>
-            )}
-          </>
-        )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {openTopics.slice(0, 8).map(({ q, m, carried }) => (
+                  <div key={q.id} style={{ background: carried ? '#FFF3D6' : '#fff', borderRadius: 12, padding: '10px 12px', border: `1px solid ${carried ? 'rgba(156,122,26,0.25)' : T.line}` }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: T.ink, lineHeight: 1.4 }}>{q.text}</div>
+                    <div style={{ fontSize: 10.5, color: T.muted, marginTop: 3 }}>{m.emoji} {m.label}{carried ? ' · carried over' : ''}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        <div style={{ padding: '10px 18px 30px', flexShrink: 0, background: T.bg, borderTop: `1px solid ${T.line}` }}>
+          <button onClick={() => setAiScope({ path: true })} style={{
+            width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: 'pointer',
+            background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, color: '#fff',
+            fontFamily: 'inherit', fontSize: 15, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            boxShadow: '0 4px 14px rgba(45,106,79,0.28)',
+          }}>
+            <Icon.Sparkle s={17} c="#fff"/> Ask AI about the whole path
+          </button>
+        </div>
       </div>
     </div>
   ) : null;
 
-  // ── Node-path geometry (Duolingo-style serpentine) ───────────────────
+  // ── AI chat sheet ─────────────────────────────────────────────────────
+  const aiSheet = aiScope ? (
+    <GPSAIChat child={child} scope={aiScope} answers={answers} onClose={() => setAiScope(null)}/>
+  ) : null;
+
+  // ── Node-path geometry (serpentine) ───────────────────────────────────
   const BOARD_W = 300, NODE_GAP = 108, TOP = 56;
   const WAVE = [0, 74, 0, -74];
   const nodePos = (i) => ({ x: BOARD_W / 2 + WAVE[i % WAVE.length], y: TOP + i * NODE_GAP });
-  const allCenters = GPS_STAGES.map((_, i) => nodePos(i));
-  const summaryCenter = nodePos(GPS_STAGES.length);
+  const allCenters = GPS_MILESTONES.map((_, i) => nodePos(i));
+  const summaryCenter = nodePos(GPS_MILESTONES.length);
   allCenters.push(summaryCenter);
   const boardH = summaryCenter.y + 96;
   const summaryUnlocked = exploredCount > 0;
 
-  // ── Node-path view ───────────────────────────────────────────────────
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {questionSheet}
       {summarySheet}
+      {aiSheet}
       {/* Child pill */}
       <div style={{ flexShrink: 0, paddingTop: topPad, paddingInline: 18, paddingBottom: 12,
         background: 'linear-gradient(180deg, rgba(248,246,241,1) 80%, rgba(248,246,241,0))',
@@ -612,7 +439,7 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
         </div>
       </div>
 
-      {/* Scrollable timeline */}
+      {/* Scrollable milestone path */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 40px' }}>
         {/* Intro + progress */}
         <div style={{ background: T.greenSoft, borderRadius: 16, padding: '14px 16px', marginBottom: 18 }}>
@@ -620,26 +447,25 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
             {child.name}'s life path
           </div>
           <div style={{ fontSize: 12, color: T.ink2, lineHeight: 1.5, marginBottom: 12 }}>
-            A guide through the years ahead. Each answer shapes what comes next — and adds a step to your personal route at the finish.
+            8 milestones, one path. Answer the questions at each stage — the AI uses them, together with {child.name}'s profile, to guide you.
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'rgba(45,106,79,0.15)', overflow: 'hidden' }}>
-              <div style={{ width: `${Math.round((exploredCount / total) * 100)}%`, height: '100%', background: T.green, borderRadius: 99, transition: 'width .25s' }}/>
+              <div style={{ width: `${Math.round((answeredTotal / questionsTotal) * 100)}%`, height: '100%', background: T.green, borderRadius: 99, transition: 'width .25s' }}/>
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: T.green, whiteSpace: 'nowrap' }}>
-              {exploredCount}/{total} stages
+              {answeredTotal}/{questionsTotal} questions
             </div>
           </div>
         </div>
 
         {/* Winding node path */}
         <div style={{ position: 'relative', width: BOARD_W, height: boardH, margin: '6px auto 0' }}>
-          {/* connectors between consecutive node centres */}
           <svg width={BOARD_W} height={boardH} style={{ position: 'absolute', left: 0, top: 0 }}>
             {allCenters.slice(1).map((c, idx) => {
               const prev = allCenters[idx];
-              const st = stageState[idx];
-              const filled = st && st.path.complete && st.path.steps.length > 0;
+              const st = msState[idx];
+              const filled = st && st.rootsDone && st.answered > 0;
               return (
                 <line key={idx} x1={prev.x} y1={prev.y} x2={c.x} y2={c.y}
                   stroke={filled ? T.mint : T.line} strokeWidth={4} strokeLinecap="round"
@@ -648,22 +474,21 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
             })}
           </svg>
 
-          {/* stage nodes */}
-          {GPS_STAGES.map((stage, i) => {
-            const { path } = stageState[i];
+          {GPS_MILESTONES.map((m, i) => {
+            const st = msState[i];
             const isUnlocked = unlocked[i];
-            const isComplete = path.complete && isUnlocked && path.steps.length > 0;
-            const isHere     = i === hereIndex;
-            const answered   = path.steps.length;
+            const isComplete = st.rootsDone && isUnlocked && st.answered > 0;
+            const isHere     = i === currentIndex;
             const { x, y }   = allCenters[i];
             const size       = isHere ? 66 : 58;
             const nodeColor  = isComplete ? T.mint : isHere ? T.green : isUnlocked ? '#CFE3D6' : '#E8EBE7';
             const nodeBorder = !isUnlocked ? `2px dashed ${T.line}` : 'none';
+            const carriedIn  = st.carried.length;
 
             return (
-              <React.Fragment key={stage.id}>
+              <React.Fragment key={m.id}>
                 <button
-                  onClick={isUnlocked ? () => setSheetStage(stage) : undefined}
+                  onClick={isUnlocked ? () => setSheetIndex(i) : undefined}
                   style={{
                     position: 'absolute', left: x - size / 2, top: y - size / 2,
                     width: size, height: size, borderRadius: 999, padding: 0,
@@ -677,24 +502,27 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
                     ? <Icon.Check s={24} c="#fff" sw={2.8}/>
                     : !isUnlocked
                       ? <Icon.Lock s={20} c={T.muted}/>
-                      : <span style={{ fontSize: isHere ? 28 : 24 }}>{stage.emoji}</span>}
+                      : <span style={{ fontSize: isHere ? 28 : 24 }}>{m.emoji}</span>}
                   {isHere && (
                     <div style={{ position: 'absolute', top: -3, right: -3, width: 16, height: 16, borderRadius: 999, background: '#E63946', border: '2px solid #fff', boxShadow: '0 1px 4px rgba(230,57,70,0.5)' }}/>
                   )}
-                  {answered > 0 && !isComplete && (
-                    <div style={{ position: 'absolute', bottom: -3, right: -3, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 999, background: T.green, color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>{answered}</div>
+                  {st.answered > 0 && !isComplete && (
+                    <div style={{ position: 'absolute', bottom: -3, right: -3, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 999, background: T.green, color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>{st.answered}</div>
+                  )}
+                  {carriedIn > 0 && isUnlocked && (
+                    <div style={{ position: 'absolute', top: -3, left: -3, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 999, background: '#E8B948', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>↩{carriedIn}</div>
                   )}
                 </button>
                 <div style={{ position: 'absolute', left: x, top: y + size / 2 + 5, transform: 'translateX(-50%)', width: 138, textAlign: 'center', pointerEvents: 'none' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: isUnlocked ? T.ink : T.muted, lineHeight: 1.2 }}>{stage.label}</div>
-                  <div style={{ fontSize: 10.5, color: T.muted, marginTop: 1 }}>{stage.ageRange}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: isUnlocked ? T.ink : T.muted, lineHeight: 1.2 }}>{m.label}</div>
+                  <div style={{ fontSize: 10.5, color: T.muted, marginTop: 1 }}>{m.sub}</div>
                   {isHere && <div style={{ fontSize: 9.5, fontWeight: 700, color: '#E63946', marginTop: 2, letterSpacing: '0.03em' }}>YOU ARE HERE</div>}
                 </div>
               </React.Fragment>
             );
           })}
 
-          {/* route node — opens the personal step route */}
+          {/* summary node — opens the whole-path summary */}
           <button
             onClick={summaryUnlocked ? () => setShowSummary(true) : undefined}
             style={{
@@ -707,18 +535,18 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
               boxShadow: summaryUnlocked ? '0 6px 16px rgba(156,122,26,0.22)' : 'none',
             }}>
             <span style={{ fontSize: 28, opacity: summaryUnlocked ? 1 : 0.5 }}>🏁</span>
-            {routeSteps.length > 0 && (
+            {openTopics.length > 0 && summaryUnlocked && (
               <div style={{ position: 'absolute', bottom: -3, right: -6, height: 18, padding: '0 6px', borderRadius: 999,
-                background: doneCount === routeSteps.length ? T.mint : T.green, color: '#fff',
+                background: T.red, color: '#fff',
                 fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 border: '2px solid #fff' }}>
-                {doneCount}/{routeSteps.length}
+                {openTopics.length}
               </div>
             )}
           </button>
           <div style={{ position: 'absolute', left: summaryCenter.x, top: summaryCenter.y + 38, transform: 'translateX(-50%)', width: 138, textAlign: 'center', pointerEvents: 'none' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: summaryUnlocked ? T.ink : T.muted, lineHeight: 1.2 }}>Your route</div>
-            <div style={{ fontSize: 10.5, color: T.muted, marginTop: 1 }}>Your next steps</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: summaryUnlocked ? T.ink : T.muted, lineHeight: 1.2 }}>Path summary</div>
+            <div style={{ fontSize: 10.5, color: T.muted, marginTop: 1 }}>Progress & open topics</div>
           </div>
         </div>
       </div>
@@ -726,25 +554,122 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   );
 }
 
-// ── LifeMomentScreen (kept for backward-compat StageDetailScreen) ─────
-function LifeMomentScreen({ stage, back, childAge }) {
+// ── AI chat sheet (simulated LLM layer) ───────────────────────────────
+
+function GPSAIChat({ child, scope, answers, onClose }) {
+  const title = scope.milestone ? `${scope.milestone.emoji} ${scope.milestone.label}` : `🏁 ${child.name}'s whole path`;
+  const [messages, setMessages] = React.useState([]);
+  const [input, setInput] = React.useState('');
+  const [typing, setTyping] = React.useState(false);
+  const turnRef = React.useRef(0);
+  const scrollRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, typing]);
+
+  const suggestions = scope.milestone
+    ? ['What should we focus on first?', 'Why do these questions matter now?', `What's coming next for ${child.name}?`]
+    : ['Where are our biggest gaps?', 'What should we do this year?', 'Summarize our progress'];
+
+  const send = (text) => {
+    const clean = (text || '').trim();
+    if (!clean || typing) return;
+    setMessages(ms => [...ms, { role: 'user', text: clean }]);
+    setInput('');
+    setTyping(true);
+    const turn = turnRef.current++;
+    setTimeout(() => {
+      setMessages(ms => [...ms, { role: 'ai', text: gpsAIReply(child, scope, answers, turn) }]);
+      setTyping(false);
+    }, 900);
+  };
+
   return (
-    <Screen bg={T.bg}>
-      <ScreenHeader title={stage.label} subtitle={stage.sub} onBack={back}/>
-      <div style={{ padding: '0 18px 32px' }}>
-        <div style={{ background: T.greenSoft, borderRadius: 18, padding: '16px 18px', marginBottom: 20,
-          display: 'flex', gap: 12 }}>
-          <div style={{ fontSize: 28 }}>{stage.emoji}</div>
-          <div style={{ fontSize: 14, color: T.ink2, lineHeight: 1.5 }}>{stage.description}</div>
-        </div>
-        {stage.moments.map(m => (
-          <div key={m.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 16px', marginBottom: 8,
-            border: `1px solid ${T.line}` }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{m.question}</div>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.5)' }}/>
+      <div style={{ position: 'relative', background: T.bg, borderRadius: '22px 22px 0 0', height: '92%', display: 'flex', flexDirection: 'column', animation: 'atypSheetUp .28s ease' }}>
+        {/* header */}
+        <div style={{ padding: '0 18px', flexShrink: 0, borderBottom: `1px solid ${T.line}` }}>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
           </div>
-        ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0 12px' }}>
+            <div style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0, background: `linear-gradient(150deg, ${T.green}, ${T.greenDeep})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon.Sparkle s={16} c="#fff"/>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 800, color: T.ink }}>Ask AI</div>
+              <div style={{ fontSize: 11.5, color: T.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title} · uses {child.name}'s profile & your answers</div>
+            </div>
+            <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          </div>
+        </div>
+
+        {/* messages */}
+        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
+          {messages.length === 0 && !typing && (
+            <div style={{ textAlign: 'center', padding: '18px 10px' }}>
+              <div style={{ fontSize: 13, color: T.ink2, lineHeight: 1.55, marginBottom: 14 }}>
+                Ask anything about {scope.milestone ? `the ${scope.milestone.label} stage` : `${child.name}'s path`} — I'll answer using {child.name}'s profile (age {child.age}, {child.diagnosis}) and the answers you've given.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {suggestions.map(s => (
+                  <button key={s} onClick={() => send(s)} style={{
+                    width: '100%', padding: '12px 14px', background: '#fff', borderRadius: 14,
+                    border: `1.5px solid ${T.line}`, cursor: 'pointer', fontFamily: 'inherit',
+                    fontSize: 13.5, fontWeight: 600, color: T.green, textAlign: 'left',
+                  }}>{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 10 }}>
+              <div style={{
+                maxWidth: '85%', padding: '11px 14px', fontSize: 13.5, lineHeight: 1.55,
+                whiteSpace: 'pre-line',
+                background: msg.role === 'user' ? T.green : '#fff',
+                color: msg.role === 'user' ? '#fff' : T.ink,
+                borderRadius: msg.role === 'user' ? '18px 4px 18px 18px' : '4px 18px 18px 18px',
+                boxShadow: msg.role === 'user' ? 'none' : `inset 0 0 0 1px ${T.line}`,
+              }}>{msg.text}</div>
+            </div>
+          ))}
+          {typing && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 10 }}>
+              <div style={{ padding: '13px 16px', background: '#fff', borderRadius: '4px 18px 18px 18px', boxShadow: `inset 0 0 0 1px ${T.line}`, fontSize: 13, color: T.muted }}>
+                Thinking…
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* input */}
+        <div style={{ padding: '10px 18px 26px', flexShrink: 0, borderTop: `1px solid ${T.line}`, background: T.bg }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && send(input)}
+              placeholder={`Ask about ${scope.milestone ? scope.milestone.label : 'the path'}…`}
+              style={{ flex: 1, height: 46, boxSizing: 'border-box', border: `1.5px solid ${T.line}`, borderRadius: 14, background: '#fff', padding: '0 14px', fontSize: 14, color: T.ink, fontFamily: 'inherit', outline: 'none' }}
+              onFocus={e => e.currentTarget.style.borderColor = T.green}
+              onBlur={e => e.currentTarget.style.borderColor = T.line}
+            />
+            <button onClick={() => send(input)} style={{
+              width: 46, height: 46, borderRadius: 14, border: 'none', cursor: 'pointer', flexShrink: 0,
+              background: T.green, color: '#fff', fontFamily: 'inherit', fontSize: 18, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: input.trim() && !typing ? 1 : 0.45,
+            }}>↑</button>
+          </div>
+          <div style={{ fontSize: 10, color: T.muted, textAlign: 'center', marginTop: 8, lineHeight: 1.4 }}>
+            Preview — replies are simulated from your answers. The pilot connects a live AI with {child.name}'s full profile.
+          </div>
+        </div>
       </div>
-    </Screen>
+    </div>
   );
 }
 
@@ -761,9 +686,28 @@ function MapScreen({ go, back, onTab, openProfile, child, openSwitcher }) {
 }
 
 // ── Backward-compatible exports ───────────────────────────────────────
-const AGE_STAGES = GPS_STAGES;
-function stagesForChild() { return GPS_STAGES; }
-function StageDetailScreen({ back }) { return <LifeMomentScreen stage={GPS_STAGES[2]} childAge={10} back={back}/>; }
-function QuestionDetailScreen({ back }) { return <LifeMomentScreen stage={GPS_STAGES[2]} childAge={10} back={back}/>; }
+function LifeMomentScreen({ stage, back }) {
+  return (
+    <Screen bg={T.bg}>
+      <ScreenHeader title={stage.label} subtitle={stage.sub} onBack={back}/>
+      <div style={{ padding: '0 18px 32px' }}>
+        <div style={{ background: T.greenSoft, borderRadius: 18, padding: '16px 18px', marginBottom: 20, display: 'flex', gap: 12 }}>
+          <div style={{ fontSize: 28 }}>{stage.emoji}</div>
+          <div style={{ fontSize: 14, color: T.ink2, lineHeight: 1.5 }}>{stage.description}</div>
+        </div>
+        {stage.questions.map(q => (
+          <div key={q.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 16px', marginBottom: 8, border: `1px solid ${T.line}` }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{q.text}</div>
+          </div>
+        ))}
+      </div>
+    </Screen>
+  );
+}
+
+const AGE_STAGES = GPS_MILESTONES;
+function stagesForChild() { return GPS_MILESTONES; }
+function StageDetailScreen({ back }) { return <LifeMomentScreen stage={GPS_MILESTONES[2]} back={back}/>; }
+function QuestionDetailScreen({ back }) { return <LifeMomentScreen stage={GPS_MILESTONES[2]} back={back}/>; }
 
 Object.assign(window, { MapScreen, GPSMapContent, StageDetailScreen, QuestionDetailScreen, AGE_STAGES, stagesForChild });

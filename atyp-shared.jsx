@@ -230,13 +230,14 @@ function Sheet({ title, onClose, children, zIndex = 200 }) {
 
 }
 
-// Bottom tab bar — four icons. GPS is now embedded in the Assistant tab.
+// Bottom tab bar — five icons. The middle tab is GPS (key kept as
+// 'assistant' so existing navigation calls keep working).
 // Profile is reached by tapping the child avatar in screen headers.
 function TabBar({ active, onTab }) {
   const tabs = [
   { key: 'home',      label: 'Home',      I: Icon.Home },
   { key: 'events',    label: 'Events',    I: Icon.Calendar },
-  { key: 'assistant', label: 'Guide',     I: Icon.Sparkle },
+  { key: 'assistant', label: 'GPS',       I: Icon.Sparkle },
   { key: 'market',    label: 'Market',    I: Icon.Store },
   { key: 'infohub',   label: 'Info Hub',  I: Icon.Folder }];
 

@@ -1209,7 +1209,10 @@ function GuideMapView({ path, currentStep, done, stepData, result, childName, ch
   );
 }
 
-function AssistantScreen({ onTab, child, openMap, openProfile, openSwitcher }) {
+// Legacy assistant decision-tree screen. Dormant since the Guide tab became
+// GPS-only — AI questions now live inside the GPS stages (see atyp-map.jsx).
+// Kept around so it can be restored if the merged flow doesn't work out.
+function LegacyAssistantScreen({ onTab, child, openMap, openProfile, openSwitcher }) {
   const [path, setPath] = React.useState([]);
   const [currentStep, setCurrentStep] = React.useState('start');
   const [done, setDone] = React.useState(false);
@@ -1391,6 +1394,19 @@ function AssistantScreen({ onTab, child, openMap, openProfile, openSwitcher }) {
         </div>
       )}
     </Screen>
+  );
+}
+
+// The Guide tab is now GPS-only: the JoyDew milestone path with per-stage
+// questions and the built-in "Ask AI" layer (atyp-map.jsx).
+function AssistantScreen({ onTab, child, openProfile, openSwitcher }) {
+  return (
+    <div style={{ width: '100%', height: '100%', background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <GPSMapContent child={child} openProfile={openProfile} openSwitcher={openSwitcher}/>
+      </div>
+      <TabBar active="assistant" onTab={onTab}/>
+    </div>
   );
 }
 

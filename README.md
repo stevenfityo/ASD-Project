@@ -46,8 +46,9 @@ python3 -m http.server 3847
 | `atyp-shared.jsx` | Theme, primitives, child data, bottom `TabBar` |
 | `atyp-app.jsx` | Root app: navigation state, routing, device frame |
 | `atyp-home.jsx` | Home dashboard |
-| `atyp-map.jsx` | GPS journey map |
-| `atyp-tabs.jsx` | Information Hub, Events, Marketplace, Assistant, Account |
+| `atyp-map.jsx` | GPS journey map (JoyDew milestone question model + Ask AI layer) |
+| `atyp-gps-data.jsx` | GPS question data: 8 milestones / 90 questions, generated from the JoyDew pilot xlsx |
+| `atyp-tabs.jsx` | Information Hub, Events, Marketplace, GPS tab, Account |
 | `atyp-profile-sections.jsx` | Information Hub inner screens + document upload |
 | `atyp-onboarding.jsx` | Onboarding flow |
 | `atyp-marketplace.jsx` | Marketplace listings |
