@@ -1,7 +1,7 @@
 // aTyp — Home (dashboard) tab. First tab in the bottom nav.
 // Parent-centric: greeting intro, mood check-in, next event, today's routine, "For you".
 
-const PARENT_NAME = 'Maria';
+const PARENT_NAME = 'Anat';
 
 // Intro wishes — one is picked at random each time the intro plays.
 const INTRO_WISHES = [

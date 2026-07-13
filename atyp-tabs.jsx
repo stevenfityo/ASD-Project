@@ -83,7 +83,7 @@ function ProfileScreen({ onTab, back, child, openSection, vault, addVaultFile })
           <div style={{ height: 6, background: T.line, borderRadius: 999, overflow: 'hidden', marginBottom: 10 }}>
             <div style={{ width: '60%', height: '100%', background: T.green, borderRadius: 999 }}/>
           </div>
-          <div style={{ fontSize: 12, color: T.muted }}>Add medical info to improve your profile</div>
+          <div style={{ fontSize: 12, color: T.muted }}>Add healthcare info to improve your profile</div>
         </div>
 
         {/* Daily Care section (first again) */}
@@ -1449,7 +1449,7 @@ function ProfileRow({ label, value, editing, onEdit, onChange, onSave, onCancel,
 }
 
 function UserProfileScreen({ onTab }) {
-  const [user, setUser] = React.useState({ name: 'Sarah Miller', email: 'sarah@example.com' });
+  const [user, setUser] = React.useState({ name: 'Anat Miller', email: 'anat@example.com' });
   const [children, setChildren] = React.useState(() => [...(window.CHILDREN || [])]);
   const [showAddChild, setShowAddChild] = React.useState(false);
   const [newChildName, setNewChildName] = React.useState('');

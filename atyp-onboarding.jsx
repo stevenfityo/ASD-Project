@@ -55,7 +55,7 @@ function AccountScreen({ go, back }) {
       </div>
       <div style={{ padding: '12px 22px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <Field label="First name" value={v.fn} onChange={set('fn')} placeholder="Maria"/>
+          <Field label="First name" value={v.fn} onChange={set('fn')} placeholder="Anat"/>
           <Field label="Last name" value={v.ln} onChange={set('ln')} placeholder="Alvarez"/>
         </div>
         <Field label="Email" value={v.em || 'maria.a@email.com'} onChange={set('em')} placeholder="you@example.com"/>

@@ -117,20 +117,6 @@ function gpsAIReply(child, scope, gps, userText, turn) {
 
 // ── Small pieces ──────────────────────────────────────────────────────
 
-function WhyToggle({ why, open: openInit = false }) {
-  const [open, setOpen] = React.useState(openInit);
-  if (!why) return null;
-  return (
-    <>
-      <button onClick={() => setOpen(o => !o)} style={{
-        marginTop: 6, padding: 0, border: 'none', background: 'none', cursor: 'pointer',
-        fontFamily: 'inherit', fontSize: 11.5, fontWeight: 700, color: T.green,
-      }}>{open ? '▾ Why this matters' : '▸ Why this matters'}</button>
-      {open && <div style={{ fontSize: 12, color: T.ink2, lineHeight: 1.5, marginTop: 4 }}>{why}</div>}
-    </>
-  );
-}
-
 function AgeChip({ m }) {
   const trig = m.isTrigger;
   return (
@@ -179,12 +165,12 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   const prep = bucket.prep || {};
 
   const [sheetIndex, setSheetIndex] = React.useState(null);
-  const [track, setTrack] = React.useState('current');
   const [funnel, setFunnel] = React.useState(null);       // { mi, path:[nodes] }
   const [showSummary, setShowSummary] = React.useState(false);
   const [aiScope, setAiScope] = React.useState(null);
 
-  const openSheet = (i) => { setFunnel(null); setTrack('current'); setSheetIndex(i); };
+  const closeSheet = () => setSheetIndex(null);   // keep funnel so reopening the same stage resumes it
+  const openSheet = (i) => { setFunnel(f => (f && f.mi === i) ? f : null); setSheetIndex(i); };
 
   const recordExplore = (l1id, pathNodes) => {
     setGpsStore(prev => {
@@ -202,6 +188,19 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
       const pr = { ...(cur.prep || {}) };
       if (pr[node.id]) delete pr[node.id];
       else pr[node.id] = { ms: mId, path: pathNodes.map(n => n.id) };
+      return { ...prev, [childId]: { ...cur, prep: pr } };
+    });
+  };
+
+  // Add/remove the whole path (all 3 questions) to/from the prep plan at once.
+  const togglePathStar = (mId, pathNodes) => {
+    setGpsStore(prev => {
+      const cur = prev[childId] || {};
+      const pr = { ...(cur.prep || {}) };
+      const ids = pathNodes.map(n => n.id);
+      const allIn = ids.every(id => pr[id]);
+      if (allIn) ids.forEach(id => delete pr[id]);
+      else pathNodes.forEach(n => { pr[n.id] = { ms: mId, path: ids }; });
       return { ...prev, [childId]: { ...cur, prep: pr } };
     });
   };
@@ -225,7 +224,7 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   const funnelTo = (idx) => setFunnel(f => ({ ...f, path: f.path.slice(0, idx + 1) }));
 
   const msStates = GPS_MILESTONES.map(m => gpsMsState(gps, prep, m));
-  const unlocked = GPS_MILESTONES.map((_, i) => i <= currentIndex || msStates[i - 1].explored > 0 || msStates[i - 1].prepCount > 0);
+  const unlocked = GPS_MILESTONES.map(() => true);   // every stage is open
   const total = GPS_MILESTONES.length;
   const capturedCount = msStates.filter(s => s.captured).length;
   const prepTotal = Object.keys(prep).length;
@@ -233,7 +232,6 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   // ── Milestone sheet ───────────────────────────────────────────────────
   const questionSheet = sheetIndex !== null ? (() => {
     const m = GPS_MILESTONES[sheetIndex];
-    const st = msStates[sheetIndex];
     const isHere = sheetIndex === currentIndex;
     const moment = gpsMoment(m);
 
@@ -249,21 +247,18 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
         <>
           <button onClick={() => setFunnel(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, color: T.green, padding: '10px 0 4px', textAlign: 'left' }}>‹ All key questions</button>
 
-          {/* breadcrumb */}
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, margin: '6px 0 10px' }}>
-            {path.map((n, i) => (
-              <React.Fragment key={n.id}>
-                {i > 0 && <span style={{ color: T.muted, fontSize: 12 }}>›</span>}
-                <button onClick={() => funnelTo(i)} style={{ border: 'none', background: i === path.length - 1 ? T.green : T.greenSoft, color: i === path.length - 1 ? '#fff' : T.green, cursor: 'pointer', fontFamily: 'inherit', fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: '4px 9px', letterSpacing: '0.02em' }}>L{n.level}</button>
-              </React.Fragment>
-            ))}
-          </div>
-
-          {/* current question */}
-          <div style={{ background: '#fff', borderRadius: 16, padding: '15px 16px', border: `1.5px solid ${T.line}`, boxShadow: `inset 3px 0 0 ${T.green}, 0 2px 10px rgba(27,36,33,0.05)` }}>
-            <div style={{ fontSize: 10.5, fontWeight: 800, color: T.green, letterSpacing: '0.05em', marginBottom: 5 }}>{(GPS_LEVEL_LABEL[node.level] || `Level ${node.level}`).toUpperCase()}</div>
-            <div style={{ fontSize: 15.5, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{node.text}</div>
-            <WhyToggle why={node.why} open={leaf}/>
+          {/* level state — filled = chosen, empty = not chosen yet */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '6px 0 6px' }}>
+            {[1, 2, 3].map((lvl, i) => {
+              const filled = lvl <= path.length;
+              const current = lvl === path.length + 1;   // the step being chosen now
+              return (
+                <React.Fragment key={lvl}>
+                  {i > 0 && <span style={{ color: T.line, fontSize: 12 }}>›</span>}
+                  <button onClick={filled ? () => funnelTo(lvl - 1) : undefined} disabled={!filled} style={{ border: filled ? 'none' : `1.5px ${current ? 'solid' : 'dashed'} ${current ? T.green : T.line}`, background: filled ? T.green : 'transparent', color: filled ? '#fff' : current ? T.green : T.muted, cursor: filled ? 'pointer' : 'default', fontFamily: 'inherit', fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: '4px 9px', letterSpacing: '0.02em' }}>L{lvl}</button>
+                </React.Fragment>
+              );
+            })}
           </div>
 
           {/* next step */}
@@ -296,10 +291,24 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, margin: '14px 2px 10px' }}>
-                This is the specific thing to raise with <b style={{ color: T.ink }}>{moment.bring}</b>. Add it to your prep plan and it&rsquo;s waiting for you on your next visit.
+              <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, margin: '14px 2px 12px' }}>
+                This is the specific thing to raise with <b style={{ color: T.ink }}>{moment.bring}</b>. Add it to your summary, or ask the AI about this period right now.
               </div>
-              <StarBtn big on={starred} onClick={() => toggleStar(m.id, node, path)}/>
+              <StarBtn big on={path.every(n => !!prep[n.id])} onClick={() => togglePathStar(m.id, path)}/>
+              <button onClick={() => setAiScope({ milestone: m, path })} style={{
+                width: '100%', height: 50, marginTop: 10, borderRadius: 14, border: 'none', cursor: 'pointer',
+                background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, color: '#fff',
+                fontFamily: 'inherit', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: '0 4px 14px rgba(45,106,79,0.28)',
+              }}>
+                <Icon.Sparkle s={17} c="#fff"/> Ask AI about this period <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 700 }}>· preview</span>
+              </button>
+              {/* stage stepper — jump to the previous / next stage */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 12 }}>
+                <button disabled={sheetIndex === 0} onClick={() => openSheet(sheetIndex - 1)} style={{ flex: 1, height: 42, borderRadius: 12, border: `1.5px solid ${T.line}`, background: '#fff', cursor: sheetIndex === 0 ? 'default' : 'pointer', opacity: sheetIndex === 0 ? 0.4 : 1, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.ink2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>‹ Prev stage</button>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.muted, whiteSpace: 'nowrap' }}>{sheetIndex + 1} / {total}</span>
+                <button disabled={sheetIndex === total - 1} onClick={() => openSheet(sheetIndex + 1)} style={{ flex: 1, height: 42, borderRadius: 12, border: `1.5px solid ${T.line}`, background: '#fff', cursor: sheetIndex === total - 1 ? 'default' : 'pointer', opacity: sheetIndex === total - 1 ? 0.4 : 1, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.ink2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>Next stage ›</button>
+              </div>
               <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
                 In the full app, the AI answers this using {child.name}'s profile.
               </div>
@@ -308,11 +317,8 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
         </>
       );
     } else {
-      // ── Overview: Now / Planning-ahead key questions ──
-      const keys = gpsKeys(m, track);
-      const seg = (id) => (
-        <button onClick={() => setTrack(id)} style={{ flex: 1, height: 36, borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, background: track === id ? '#fff' : 'transparent', color: track === id ? T.green : T.muted, boxShadow: track === id ? '0 1px 4px rgba(27,36,33,0.12)' : 'none' }}>{GPS_TRACK[id].emoji} {GPS_TRACK[id].label}</button>
-      );
+      // ── Overview: all key questions for this stage ──
+      const keys = gpsKeys(m);
       body = (
         <>
           <div style={{ background: T.greenSoft, borderRadius: 14, padding: '11px 13px', margin: '6px 0 12px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
@@ -322,24 +328,16 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
               <div style={{ fontSize: 11.5, color: T.ink2, lineHeight: 1.45, marginTop: 2 }}>{m.description}</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 4, background: T.bgAlt, borderRadius: 12, padding: 4, marginBottom: 6 }}>{seg('current')}{seg('future')}</div>
           <div style={{ fontSize: 11, color: T.muted, margin: '4px 2px 12px', lineHeight: 1.4 }}>
-            {track === 'current' ? 'Questions to ask now.' : 'Questions to start thinking about before the next stage.'} Tap one, narrow it down, add it to your plan.
+            Tap a question, narrow it down, add it to your plan.
           </div>
           {keys.map(q => {
             const stars = gpsSubtreeStars(q, prep);
-            const state = gps[q.id];
             return (
               <button key={q.id} onClick={() => openFunnel(sheetIndex, q)} style={{ width: '100%', background: '#fff', borderRadius: 16, padding: '14px 15px', marginBottom: 10, border: `1.5px solid ${stars ? 'rgba(45,106,79,0.35)' : T.line}`, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', boxShadow: '0 2px 8px rgba(27,36,33,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: 999, background: GPS_RISK_COLOR[q.risk] || T.line, flexShrink: 0, marginTop: 6 }}/>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{q.text}</div>
-                    <WhyToggle why={q.why}/>
-                    <div style={{ fontSize: 11.5, fontWeight: 700, color: stars ? T.green : T.muted, marginTop: 7 }}>
-                      {stars ? `★ ${stars} in your plan · tap to add more` : state ? 'Continue ›' : 'Explore & add ›'}
-                    </div>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: 999, background: GPS_RISK_COLOR[q.risk] || T.line, flexShrink: 0 }}/>
+                  <div style={{ flex: 1, fontSize: 14.5, fontWeight: 700, color: T.ink, lineHeight: 1.4 }}>{q.text}</div>
                   <Icon.ChevronRight s={16} c={T.muted}/>
                 </div>
               </button>
@@ -349,11 +347,9 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
       );
     }
 
-    const inFunnel = funnel && funnel.mi === sheetIndex;
-
     return (
       <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-        <div onClick={() => openSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
+        <div onClick={closeSheet} style={{ position: 'absolute', inset: 0, background: 'rgba(27,36,33,0.45)' }}/>
         <div style={{ position: 'relative', background: T.bg, borderRadius: '22px 22px 0 0', maxHeight: '90%', display: 'flex', flexDirection: 'column', animation: 'atypSheetUp .28s ease' }}>
           <div style={{ padding: '0 18px', flexShrink: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
@@ -369,30 +365,11 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
                 </div>
                 <div style={{ marginTop: 4 }}><AgeChip m={m}/></div>
               </div>
-              <button onClick={() => openSheet(null)} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'rgba(45,106,79,0.15)', overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min(100, st.prepCount * 34)}%`, height: '100%', background: T.green, borderRadius: 99, transition: 'width .25s' }}/>
-              </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: st.prepCount ? T.green : T.muted, whiteSpace: 'nowrap' }}>
-                {st.prepCount ? `★ ${st.prepCount} in your plan` : 'none added yet'}
-              </div>
+              <button onClick={closeSheet} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
             </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 14px' }}>{body}</div>
-
-          <div style={{ padding: '10px 18px 30px', flexShrink: 0, background: T.bg, borderTop: `1px solid ${T.line}` }}>
-            <button onClick={() => setAiScope(inFunnel ? { milestone: m, path: funnel.path } : { milestone: m })} style={{
-              width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: 'pointer',
-              background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, color: '#fff',
-              fontFamily: 'inherit', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              boxShadow: '0 4px 14px rgba(45,106,79,0.28)',
-            }}>
-              <Icon.Sparkle s={17} c="#fff"/> {inFunnel ? 'Ask AI about this question' : 'Ask AI about this stage'} <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 700 }}>· preview</span>
-            </button>
-          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 28px' }}>{body}</div>
         </div>
       </div>
     );
@@ -416,16 +393,17 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
           <div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5, marginTop: 2, marginBottom: 10 }}>
             {prepTotal
               ? `${prepTotal} question${prepTotal > 1 ? 's' : ''} ready — the right things to ask, grouped by the meeting they belong to.`
-              : 'Your personal list of the right questions to ask — build it by opening a milestone and tapping ★.'}
+              : 'Nothing added yet — but you can still ask the AI about where you are right now.'}
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 14px' }}>
           {prepTotal === 0 && (
             <>
-              <div style={{ background: T.greenSoft, borderRadius: 14, padding: '14px 15px', marginBottom: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: T.ink, marginBottom: 4 }}>How your plan works</div>
+              <div style={{ background: T.greenSoft, borderRadius: 14, padding: '18px 16px', marginBottom: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 28, marginBottom: 6 }}>📝</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: T.ink, marginBottom: 5 }}>No questions selected yet</div>
                 <div style={{ fontSize: 12, color: T.ink2, lineHeight: 1.55 }}>
-                  Open a milestone → pick a question that worries you → narrow it to the exact thing to ask → tap ★. It collects here as a checklist you can bring to your doctor, school, or coordinator.
+                  You haven't added any questions to your summary. Open a milestone, narrow a worry to the exact question and tap ★ — or ask the AI about your current stage right now.
                 </div>
               </div>
               <div style={{ fontSize: 11, fontWeight: 800, color: T.green, letterSpacing: '0.06em', marginBottom: 8 }}>GOOD PLACES TO START</div>
@@ -464,8 +442,8 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
           ))}
         </div>
         <div style={{ padding: '10px 18px 30px', flexShrink: 0, background: T.bg, borderTop: `1px solid ${T.line}` }}>
-          <button onClick={() => setAiScope({ whole: true })} style={{ width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: 'pointer', background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(45,106,79,0.28)' }}>
-            <Icon.Sparkle s={17} c="#fff"/> Ask AI about the whole plan <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 700 }}>· preview</span>
+          <button onClick={() => setAiScope(prepTotal ? { whole: true } : { milestone: GPS_MILESTONES[currentIndex] })} style={{ width: '100%', height: 50, borderRadius: 14, border: 'none', cursor: 'pointer', background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(45,106,79,0.28)' }}>
+            <Icon.Sparkle s={17} c="#fff"/> {prepTotal ? 'Ask AI about the whole plan' : 'Ask AI about your current stage'} <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 700 }}>· preview</span>
           </button>
         </div>
       </div>
@@ -482,7 +460,9 @@ function GPSMapContent({ child, openProfile, openSwitcher, embedded = false }) {
   const summaryCenter = nodePos(GPS_MILESTONES.length);
   allCenters.push(summaryCenter);
   const boardH = summaryCenter.y + 100;
-  const summaryUnlocked = prepTotal > 0 || capturedCount > 0 || msStates.some(s => s.explored > 0);
+  // Always reachable: even with an empty plan the summary offers to ask the
+  // AI about the current stage.
+  const summaryUnlocked = true;
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: T.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

@@ -7,6 +7,14 @@ const Icon = {
       <path d="M3.5 11L12 4l8.5 7v9a1 1 0 01-1 1h-4v-6h-7v6h-4a1 1 0 01-1-1v-9z" stroke={c} strokeWidth={sw} strokeLinejoin="round" />
     </svg>,
 
+  // Compass — used for the "GPS" tab
+  Compass: ({ s = 22, c = 'currentColor', sw = 1.8 }) =>
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke={c} strokeWidth={sw} />
+      <path d="M15.8 8.2l-2 5.6-5.6 2 2-5.6 5.6-2z" stroke={c} strokeWidth={sw} strokeLinejoin="round" fill="none" />
+      <circle cx="12" cy="12" r="0.9" fill={c} />
+    </svg>,
+
   // GPS pin — used for the renamed "GPS" tab (formerly "Map")
   Map: ({ s = 22, c = 'currentColor', sw = 1.8 }) =>
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
