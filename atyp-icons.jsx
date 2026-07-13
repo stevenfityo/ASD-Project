@@ -98,6 +98,13 @@ const Icon = {
       <path d="M10 21a2 2 0 004 0" stroke={c} strokeWidth={sw} strokeLinecap="round" />
     </svg>,
 
+  // Clock — used for the conversation-history entry point
+  History: ({ s = 20, c = 'currentColor', sw = 1.8 }) =>
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke={c} strokeWidth={sw} />
+      <path d="M12 7.5V12l3 2" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>,
+
   Heart: ({ s = 18, c = 'currentColor', sw = 1.8 }) =>
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
       <path d="M12 20s-8-5-8-11.5A4.5 4.5 0 0112 5a4.5 4.5 0 018 3.5C20 15 12 20 12 20z" stroke={c} strokeWidth={sw} strokeLinejoin="round" />

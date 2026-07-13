@@ -314,6 +314,13 @@ function ChildSwitcher({ activeId, onPick, onClose }) {
 function EmergencySheet({ child, onClose }) {
   const [text, setText] = React.useState('');
   const [messages, setMessages] = React.useState([]);
+  const [view, setView] = React.useState('chat');   // 'chat' | 'history'
+  // Stub past conversations — the full app persists real chats here.
+  const pastChats = [
+    { q: 'How do I prepare for the IEP meeting?', when: 'Yesterday' },
+    { q: 'Dentists that handle sensory issues?', when: '3 days ago' },
+    { q: 'Calming a meltdown at school', when: 'Last week' },
+  ];
   const cats = [
     { label: 'Medical', emoji: '🩺' },
     { label: 'Dental', emoji: '🦷' },
@@ -358,80 +365,117 @@ function EmergencySheet({ child, onClose }) {
           <div style={{ width: 36, height: 4, borderRadius: 999, background: T.line }}/>
         </div>
 
-        {/* header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, marginBottom: 14 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 14, background: T.greenSoft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon.Sparkle s={24} c={T.green}/>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, letterSpacing: '-0.02em' }}>Ask Companion</div>
-            <div style={{ fontSize: 12, color: T.muted }}>Your AI companion for {child.name} — anything, anytime</div>
-          </div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-        </div>
-
-        {messages.length === 0 ? (
-          <div style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.5, marginBottom: 14 }}>
-            Pick a topic for a quick answer, or type your own question — the companion uses {child.name}'s profile and your area to help.
-          </div>
+        {view === 'history' ? (
+          <>
+            {/* header — history */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 14 }}>
+              <button onClick={() => setView('chat')} aria-label="Back" style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 18, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>‹</button>
+              <div style={{ flex: 1, fontSize: 18, fontWeight: 800, color: T.ink, letterSpacing: '-0.02em' }}>History</div>
+              <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {pastChats.map((h, i) => (
+                <button key={i} onClick={() => setView('chat')} style={{ display: 'flex', alignItems: 'center', gap: 12, background: T.bgAlt, border: 'none', borderRadius: 14, padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%' }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 999, background: T.greenSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon.Sparkle s={16} c={T.green}/>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.q}</div>
+                    <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{h.when}</div>
+                  </div>
+                  <Icon.ChevronRight s={15} c={T.muted}/>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: T.muted, textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
+              Preview — in the full app your past chats are saved here.
+            </div>
+          </>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
-            {messages.map((msg, i) => msg.role === 'user' ? (
-              <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '85%', background: T.greenSoft, borderRadius: '16px 16px 4px 16px', padding: '10px 14px', fontSize: 13.5, color: T.ink, lineHeight: 1.5 }}>
-                {msg.text}
+          <>
+            {/* header — chat */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, marginBottom: 14 }}>
+              {messages.length === 0 && (
+                <button onClick={() => setView('history')} aria-label="Conversation history" style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon.History s={18} c={T.ink2}/>
+                </button>
+              )}
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: T.greenSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon.Sparkle s={24} c={T.green}/>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, letterSpacing: '-0.02em' }}>Ask Companion</div>
+                <div style={{ fontSize: 12, color: T.muted }}>Your AI companion for {child.name} — anything, anytime</div>
+              </div>
+              <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+            </div>
+
+            {messages.length === 0 ? (
+              <div style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.5, marginBottom: 14 }}>
+                Pick a topic for a quick answer, or type your own question — the companion uses {child.name}'s profile and your area to help.
               </div>
             ) : (
-              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 999, background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon.Sparkle s={16} c="#fff"/>
-                </div>
-                <div style={{ flex: 1, background: T.bgAlt, borderRadius: '16px 16px 16px 4px', padding: '12px 14px' }}>
-                  <div style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.55 }}>{msg.intro}</div>
-                  {msg.body && <div style={{ fontSize: 20, fontWeight: 800, color: T.muted, letterSpacing: '0.15em', margin: '6px 0 2px' }}>{msg.body}</div>}
-                  {msg.options && (
-                    <div style={{ marginTop: 10 }}>
-                      {msg.options.map((o, j) => (
-                        <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 12, padding: '10px 12px', marginBottom: 8, boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>{o.name}</div>
-                            <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{o.meta}</div>
-                          </div>
-                          <span style={{ fontSize: 11.5, fontWeight: 700, color: '#fff', background: T.green, borderRadius: 999, padding: '5px 12px' }}>{o.tag}</span>
-                        </div>
-                      ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
+                {messages.map((msg, i) => msg.role === 'user' ? (
+                  <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '85%', background: T.greenSoft, borderRadius: '16px 16px 4px 16px', padding: '10px 14px', fontSize: 13.5, color: T.ink, lineHeight: 1.5 }}>
+                    {msg.text}
+                  </div>
+                ) : (
+                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 999, background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon.Sparkle s={16} c="#fff"/>
                     </div>
-                  )}
-                  {msg.note && <div style={{ fontSize: 11.5, color: T.muted, lineHeight: 1.5, marginTop: 8 }}>{msg.note}</div>}
-                </div>
+                    <div style={{ flex: 1, background: T.bgAlt, borderRadius: '16px 16px 16px 4px', padding: '12px 14px' }}>
+                      <div style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.55 }}>{msg.intro}</div>
+                      {msg.body && <div style={{ fontSize: 20, fontWeight: 800, color: T.muted, letterSpacing: '0.15em', margin: '6px 0 2px' }}>{msg.body}</div>}
+                      {msg.options && (
+                        <div style={{ marginTop: 10 }}>
+                          {msg.options.map((o, j) => (
+                            <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 12, padding: '10px 12px', marginBottom: 8, boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>{o.name}</div>
+                                <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{o.meta}</div>
+                              </div>
+                              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#fff', background: T.green, borderRadius: 999, padding: '5px 12px' }}>{o.tag}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {msg.note && <div style={{ fontSize: 11.5, color: T.muted, lineHeight: 1.5, marginTop: 8 }}>{msg.note}</div>}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {/* topic presets — always available */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-          {cats.map(c => (
-            <button key={c.label} onClick={() => pickPreset(c)} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: T.greenSoft, border: 'none', borderRadius: 999, padding: '8px 13px',
-              cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.green,
+            {/* topic presets — only on the first screen, before chatting */}
+            {messages.length === 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {cats.map(c => (
+                  <button key={c.label} onClick={() => pickPreset(c)} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: T.greenSoft, border: 'none', borderRadius: 999, padding: '8px 13px',
+                    cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.green,
+                  }}>
+                    <span style={{ fontSize: 14 }}>{c.emoji}</span> {c.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <textarea value={text} onChange={e => setText(e.target.value)} rows={3}
+              placeholder="Ask me anything about caring for your child…"
+              style={{ width: '100%', boxSizing: 'border-box', borderRadius: 14, border: `1.5px solid ${T.line}`, padding: '12px 14px', fontFamily: 'inherit', fontSize: 14, color: T.ink, outline: 'none', resize: 'none', lineHeight: 1.5, marginBottom: 12 }}/>
+            <button onClick={sendFree} disabled={!text.trim()} style={{
+              width: '100%', height: 50, borderRadius: 14, border: 'none',
+              background: text.trim() ? `linear-gradient(140deg, ${T.green}, ${T.greenDeep})` : T.line,
+              color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700,
+              cursor: text.trim() ? 'pointer' : 'default',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
-              <span style={{ fontSize: 14 }}>{c.emoji}</span> {c.label}
+              <Icon.Send s={17} c="#fff"/> Ask Companion
             </button>
-          ))}
-        </div>
-        <textarea value={text} onChange={e => setText(e.target.value)} rows={3}
-          placeholder="Ask me anything about caring for your child…"
-          style={{ width: '100%', boxSizing: 'border-box', borderRadius: 14, border: `1.5px solid ${T.line}`, padding: '12px 14px', fontFamily: 'inherit', fontSize: 14, color: T.ink, outline: 'none', resize: 'none', lineHeight: 1.5, marginBottom: 12 }}/>
-        <button onClick={sendFree} disabled={!text.trim()} style={{
-          width: '100%', height: 50, borderRadius: 14, border: 'none',
-          background: text.trim() ? `linear-gradient(140deg, ${T.green}, ${T.greenDeep})` : T.line,
-          color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700,
-          cursor: text.trim() ? 'pointer' : 'default',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        }}>
-          <Icon.Send s={17} c="#fff"/> Ask Companion
-        </button>
+          </>
+        )}
       </div>
     </div>
   );
