@@ -313,7 +313,7 @@ function ChildSwitcher({ activeId, onPick, onClose }) {
 // quick answer, or type a free-form question to chat with the assistant.
 function EmergencySheet({ child, onClose }) {
   const [text, setText] = React.useState('');
-  const [sent, setSent] = React.useState(false);
+  const [messages, setMessages] = React.useState([]);
   const cats = [
     { label: 'Medical', emoji: '🩺' },
     { label: 'Dental', emoji: '🦷' },
@@ -322,7 +322,33 @@ function EmergencySheet({ child, onClose }) {
     { label: 'School', emoji: '🏫' },
     { label: 'Mental health', emoji: '🫂' },
   ];
-  const ask = () => { if (text.trim()) setSent(true); };
+
+  // Topic-specific canned answers for the preset chips.
+  const PRESET_ANSWERS = {
+    Medical:         { intro: 'ASD-aware medical options near you:',        options: [ { name: 'Bayside Pediatric Care', meta: 'Open now · 1.2 mi · ASD-aware staff', tag: 'Call' }, { name: 'Dr. Priya Nair — Developmental Peds', meta: '2.4 mi · accepts your plan', tag: 'Book' } ] },
+    Dental:          { intro: 'Dentists used to sensory-sensitive kids:',    options: [ { name: 'Dr. Lena Ortiz — Gentle Dental', meta: 'Open until 9 PM · 2.0 mi', tag: 'Call' }, { name: 'Smile Kids — Special Needs Dentistry', meta: '3.1 mi · sedation available', tag: 'Book' } ] },
+    Legal:           { intro: 'Legal help for special-needs families:',      options: [ { name: 'Harbor Disability Law', meta: 'Free consult · 4.0 mi', tag: 'Call' }, { name: 'ARC Legal Advocacy Line', meta: 'Guardianship & ABLE accounts', tag: 'Call' } ] },
+    Transport:       { intro: 'Getting around with support:',                options: [ { name: 'County Paratransit', meta: 'Door-to-door · book 1 day ahead', tag: 'Book' }, { name: 'SafeRide ASD', meta: 'Trained drivers · 24/7', tag: 'Call' } ] },
+    School:          { intro: 'School and IEP support:',                     options: [ { name: 'District Special-Ed Office', meta: 'IEP & accommodations', tag: 'Call' }, { name: 'Parent Training & Info Center', meta: 'Free advocacy support', tag: 'Call' } ] },
+    'Mental health': { intro: 'Mental-health support near you:',             options: [ { name: 'Calm Minds Therapy', meta: 'ABA & family therapy · 1.8 mi', tag: 'Book' }, { name: '988 Support Line', meta: '24/7 · trained counselors', tag: 'Call' } ] },
+  };
+
+  const pickPreset = (c) => {
+    const a = PRESET_ANSWERS[c.label];
+    setMessages(m => [...m,
+      { role: 'user', text: `Help with ${c.label.toLowerCase()}` },
+      { role: 'assistant', intro: `Happy to help. Based on ${child.name}'s profile and your area — ${a.intro}`, options: a.options, note: 'Want me to go deeper on any of these? Just ask below.' },
+    ]);
+  };
+
+  const sendFree = () => {
+    const t = text.trim(); if (!t) return;
+    setMessages(m => [...m,
+      { role: 'user', text: t },
+      { role: 'assistant', intro: "Sure — here's my answer to your question:", body: '…', note: `In the pilot this is simulated; the full app answers this using ${child.name}'s profile.` },
+    ]);
+    setText('');
+  };
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
@@ -344,72 +370,68 @@ function EmergencySheet({ child, onClose }) {
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
         </div>
 
-        {sent ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* what you asked */}
-            <div style={{ alignSelf: 'flex-end', maxWidth: '85%', background: T.greenSoft, borderRadius: '16px 16px 4px 16px', padding: '10px 14px', fontSize: 13.5, color: T.ink, lineHeight: 1.5 }}>
-              {text}
-            </div>
-            {/* assistant reply */}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 999, background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon.Sparkle s={16} c="#fff"/>
-              </div>
-              <div style={{ flex: 1, background: T.bgAlt, borderRadius: '16px 16px 16px 4px', padding: '12px 14px' }}>
-                <div style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.55, marginBottom: 10 }}>
-                  Happy to help. Based on {child.name}'s profile and your area, here are a few options that fit:
-                </div>
-                {[
-                  { name: 'Bayside Pediatric Care', meta: 'Open now · 1.2 mi · ASD-aware staff', tag: 'Call' },
-                  { name: 'Dr. Lena Ortiz — Urgent Dental', meta: 'Open until 9 PM · 2.0 mi', tag: 'Call' },
-                ].map((o, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 12, padding: '10px 12px', marginBottom: 8, boxShadow: `inset 0 0 0 1px ${T.line}` }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>{o.name}</div>
-                      <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{o.meta}</div>
-                    </div>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#fff', background: T.green, borderRadius: 999, padding: '5px 12px' }}>{o.tag}</span>
-                  </div>
-                ))}
-                <div style={{ fontSize: 11.5, color: T.muted, lineHeight: 1.5 }}>
-                  Want me to go deeper on any of these? Just ask me something else below.
-                </div>
-              </div>
-            </div>
-            <button onClick={() => { setSent(false); setText(''); }} style={{ alignSelf: 'flex-start', background: T.bgAlt, border: 'none', borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, color: T.ink2 }}>
-              Ask something else
-            </button>
+        {messages.length === 0 ? (
+          <div style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.5, marginBottom: 14 }}>
+            Pick a topic for a quick answer, or type your own question — the companion uses {child.name}'s profile and your area to help.
           </div>
         ) : (
-          <>
-            <div style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.5, marginBottom: 14 }}>
-              Pick a topic for a quick answer, or type your own question — the companion uses {child.name}'s profile and your area to help.
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-              {cats.map(c => (
-                <button key={c.label} onClick={() => { setText(`Help with ${c.label.toLowerCase()}`); setSent(true); }} style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  background: T.greenSoft, border: 'none', borderRadius: 999, padding: '8px 13px',
-                  cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.green,
-                }}>
-                  <span style={{ fontSize: 14 }}>{c.emoji}</span> {c.label}
-                </button>
-              ))}
-            </div>
-            <textarea value={text} onChange={e => setText(e.target.value)} rows={3}
-              placeholder="Ask me anything about caring for your child…"
-              style={{ width: '100%', boxSizing: 'border-box', borderRadius: 14, border: `1.5px solid ${T.line}`, padding: '12px 14px', fontFamily: 'inherit', fontSize: 14, color: T.ink, outline: 'none', resize: 'none', lineHeight: 1.5, marginBottom: 12 }}/>
-            <button onClick={ask} disabled={!text.trim()} style={{
-              width: '100%', height: 50, borderRadius: 14, border: 'none',
-              background: text.trim() ? `linear-gradient(140deg, ${T.green}, ${T.greenDeep})` : T.line,
-              color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700,
-              cursor: text.trim() ? 'pointer' : 'default',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            }}>
-              <Icon.Send s={17} c="#fff"/> Ask Companion
-            </button>
-          </>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
+            {messages.map((msg, i) => msg.role === 'user' ? (
+              <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '85%', background: T.greenSoft, borderRadius: '16px 16px 4px 16px', padding: '10px 14px', fontSize: 13.5, color: T.ink, lineHeight: 1.5 }}>
+                {msg.text}
+              </div>
+            ) : (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 999, background: `linear-gradient(140deg, ${T.green}, ${T.greenDeep})`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon.Sparkle s={16} c="#fff"/>
+                </div>
+                <div style={{ flex: 1, background: T.bgAlt, borderRadius: '16px 16px 16px 4px', padding: '12px 14px' }}>
+                  <div style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.55 }}>{msg.intro}</div>
+                  {msg.body && <div style={{ fontSize: 20, fontWeight: 800, color: T.muted, letterSpacing: '0.15em', margin: '6px 0 2px' }}>{msg.body}</div>}
+                  {msg.options && (
+                    <div style={{ marginTop: 10 }}>
+                      {msg.options.map((o, j) => (
+                        <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 12, padding: '10px 12px', marginBottom: 8, boxShadow: `inset 0 0 0 1px ${T.line}` }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 700, color: T.ink }}>{o.name}</div>
+                            <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{o.meta}</div>
+                          </div>
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: '#fff', background: T.green, borderRadius: 999, padding: '5px 12px' }}>{o.tag}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {msg.note && <div style={{ fontSize: 11.5, color: T.muted, lineHeight: 1.5, marginTop: 8 }}>{msg.note}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
+
+        {/* topic presets — always available */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          {cats.map(c => (
+            <button key={c.label} onClick={() => pickPreset(c)} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: T.greenSoft, border: 'none', borderRadius: 999, padding: '8px 13px',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: T.green,
+            }}>
+              <span style={{ fontSize: 14 }}>{c.emoji}</span> {c.label}
+            </button>
+          ))}
+        </div>
+        <textarea value={text} onChange={e => setText(e.target.value)} rows={3}
+          placeholder="Ask me anything about caring for your child…"
+          style={{ width: '100%', boxSizing: 'border-box', borderRadius: 14, border: `1.5px solid ${T.line}`, padding: '12px 14px', fontFamily: 'inherit', fontSize: 14, color: T.ink, outline: 'none', resize: 'none', lineHeight: 1.5, marginBottom: 12 }}/>
+        <button onClick={sendFree} disabled={!text.trim()} style={{
+          width: '100%', height: 50, borderRadius: 14, border: 'none',
+          background: text.trim() ? `linear-gradient(140deg, ${T.green}, ${T.greenDeep})` : T.line,
+          color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 700,
+          cursor: text.trim() ? 'pointer' : 'default',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        }}>
+          <Icon.Send s={17} c="#fff"/> Ask Companion
+        </button>
       </div>
     </div>
   );
