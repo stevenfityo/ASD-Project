@@ -369,9 +369,9 @@ function EmergencySheet({ child, onClose }) {
           <>
             {/* header — history */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 14 }}>
-              <button onClick={() => setView('chat')} aria-label="Back" style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 18, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>‹</button>
+              <button onClick={() => setView('chat')} aria-label="Back" style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 20, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>‹</button>
               <div style={{ flex: 1, fontSize: 18, fontWeight: 800, color: T.ink, letterSpacing: '-0.02em' }}>History</div>
-              <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+              <button onClick={onClose} style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 20, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {pastChats.map((h, i) => (
@@ -394,12 +394,7 @@ function EmergencySheet({ child, onClose }) {
         ) : (
           <>
             {/* header — chat */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, marginBottom: 14 }}>
-              {messages.length === 0 && (
-                <button onClick={() => setView('history')} aria-label="Conversation history" style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Icon.History s={18} c={T.ink2}/>
-                </button>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 14 }}>
               <div style={{ width: 44, height: 44, borderRadius: 14, background: T.greenSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Icon.Sparkle s={24} c={T.green}/>
               </div>
@@ -407,7 +402,12 @@ function EmergencySheet({ child, onClose }) {
                 <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, letterSpacing: '-0.02em' }}>Ask Companion</div>
                 <div style={{ fontSize: 12, color: T.muted }}>Your AI companion for {child.name} — anything, anytime</div>
               </div>
-              <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 17, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+              {messages.length === 0 && (
+                <button onClick={() => setView('history')} aria-label="Conversation history" style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon.History s={20} c={T.ink2}/>
+                </button>
+              )}
+              <button onClick={onClose} style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: T.bgAlt, cursor: 'pointer', fontFamily: 'inherit', fontSize: 20, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
             </div>
 
             {messages.length === 0 ? (
