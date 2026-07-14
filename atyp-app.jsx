@@ -161,7 +161,10 @@ function App() {
   return (
     <div className="atyp-stage" data-comment-anchor="0fc1c1e110-div-112-5">
       {/* Side caption / wayfinding for investor demo */}
-      <SideCaption screen={screen} go={(s) => {setStack([]);setScreen(s);}} />
+      <SideCaption
+        screen={screen}
+        go={(s) => {setStack([]);setScreen(s);}}
+        openEmergency={() => setEmergencyOpen(true)} />
 
       {/* Phone frame */}
       <div style={{
@@ -496,7 +499,7 @@ function isQuestionDone(question, doneIds) {
 
 // ── Side caption: a quick screen-jump panel for investor demo ─────────
 
-function SideCaption({ screen, go }) {
+function SideCaption({ screen, go, openEmergency }) {
   const flow = [
   { group: 'Onboarding', items: [
     ['welcome', '01 Welcome'],
@@ -508,13 +511,12 @@ function SideCaption({ screen, go }) {
   { group: 'Main app', items: [
     ['home', '06 Home'],
     ['events', '07 Events'],
-    ['map', '08 GPS (journey map)'],
-    ['stage', '09 Age stage detail'],
-    ['question', '10 Question detail'],
-    ['market', '11 Marketplace'],
-    ['assistant', '12 AI Assistant + Journey'],
-    ['map_link', '   ↳ GPS map (from Assistant)', 'map'],
-    ['profile', '★  Profile (via avatar)']]
+    // The GPS tab and the standalone map render the same GPSMapContent —
+    // one entry, keyed on 'assistant' so it stays lit when the tab bar is used.
+    ['assistant', '08 GPS (journey map)'],
+    ['market', '09 Marketplace'],
+    ['profile', '10 Info Hub'],
+    ['userProfile', '★  Account (via avatar)']]
   }];
 
   return (
@@ -553,6 +555,21 @@ function SideCaption({ screen, go }) {
           </div>
         </div>
       )}
+
+      {/* Overlays — not screens, so they can't be reached through `go` */}
+      <div>
+        <div style={{
+          fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase',
+          letterSpacing: '0.06em', marginBottom: 8
+        }}>Overlay</div>
+        <button onClick={openEmergency} style={{
+          textAlign: 'left', padding: '8px 12px', borderRadius: 10, width: '100%',
+          fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          background: 'transparent', color: T.ink2, border: 'none'
+        }}>
+          ✦  Ask Companion
+        </button>
+      </div>
     </div>);
 
 }
